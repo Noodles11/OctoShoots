@@ -25,6 +25,21 @@ public partial class Main
         _ink.Burst(pos, Vector3.Up, (int)(6 * size), 0.8f, 1f, 0.9f, 0.04f, 0.07f, Foam, FoamGone, 1.5f, 1f);
     }
 
+    static Vector3 Audible(Vector3 pos, Vector3 listener)
+    {
+        Vector3 away = pos - listener;
+        float d = away.Length();
+        return d > 25f ? listener + away / d * 25f : pos;
+    }
+
+    static string NoticeSound(string? kind) => kind switch
+    {
+        "Barracuda" => "hiss",
+        "Pufferling" => "squeak",
+        "Crabby" or "SeaUrchin" or "Moray" => "click",
+        _ => "gurgle",
+    };
+
     void HandleEvents()
     {
         var vm = _camera.Viewmodel;
@@ -109,6 +124,7 @@ public partial class Main
                     }
                     break;
                 case SimEventType.TerrainCarved:
+                    _sun.MarkDirty();
                     _terrain.Remesh(ev.Position, ev.Value);
                     if (ev.Value >= 0.5f)
                     {
@@ -143,11 +159,27 @@ public partial class Main
                     _camera.AddTrauma(0.3f);
                     break;
                 case SimEventType.EnemyTelegraph:
-                    _sfx.PlayTelegraph(pos, ev.Value);
+                    _sfx.PlayTelegraph(Audible(pos, playerPos), ev.Value);
+                    break;
+                case SimEventType.CreatureNoticed:
+                    // Heard from beyond the mist: the call comes from its direction, never fainter than 25 m.
+                    _sfx.PlayAt(NoticeSound(ev.Tag), Audible(pos, playerPos), 2f);
                     break;
                 case SimEventType.EnemyShotFired:
-                    if (ev.Tag == "star") _sfx.PlayAt("star", pos, 0f);
-                    else _sfx.PlayAt("enemy_shot", pos, 0f);
+                    switch (ev.Tag)
+                    {
+                        case "star": _sfx.PlayAt("star", pos, 0f); break;
+                        case "spore": _sfx.PlayAt("gurgle", pos, 3f); break;
+                        case "burst":
+                            _sfx.PlayAt("pop", pos, 6f);
+                            _sparks.Burst(pos, Vector3.Up, 18, 4f, 1f, 0.4f, 0.1f, 0.02f, new Color(1f, 0.95f, 0.5f, 1f), new Color(1f, 0.7f, 0.2f, 0f), 3f, 0.4f);
+                            break;
+                        case "bloom": _sfx.PlayAt("click", pos, 3f); break;
+                        case "charge": _sfx.PlayAt("hiss", pos, 3f); break;
+                        case "leap": _sfx.PlayAt("bounce", pos, 2f); break;
+                        case "lunge": _sfx.PlayAt("hiss", pos, 2f); break;
+                        default: _sfx.PlayAt("enemy_shot", pos, 0f); break;
+                    }
                     break;
                 case SimEventType.NinjaEmerged:
                     _sfx.PlayAt("emerge", pos, -2f);

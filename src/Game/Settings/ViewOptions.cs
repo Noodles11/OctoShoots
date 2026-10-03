@@ -15,6 +15,10 @@ public sealed class ViewOptions
     [Tune("View", 2f, 40f)] public float MistStart = 14f;
     [Tune("View", 8f, 80f)] public float MistEnd = 40f;
     [Tune("View", 10f, 80f)] public float MinimapRange = 32f;
+    /// <summary>Frame-rate cap (0 = uncapped). Keeps the GPU cool; vsync caps it further on slower screens.</summary>
+    [Tune("View", 0f, 240f)] public int MaxFps = 60;
+    /// <summary>Strength of sunlight under water: god rays, caustics and dappled light (0 turns them off).</summary>
+    [Tune("Light", 0f, 2f)] public float SunLight = 1f;
 }
 
 /// <summary>Loads and saves tuning and options as JSON in the user directory.</summary>

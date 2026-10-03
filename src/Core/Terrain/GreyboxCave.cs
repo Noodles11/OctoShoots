@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
 using OctoShoots.Core.Loot;
+using OctoShoots.Core.Sim;
 using static OctoShoots.Core.Terrain.SdfMath;
 
 namespace OctoShoots.Core.Terrain;
@@ -37,8 +38,11 @@ public sealed class Cave
 
     public IReadOnlyList<AnemoneSpot> Anemones { get; init; } = Array.Empty<AnemoneSpot>();
 
+    /// <summary>Where the creatures live.</summary>
+    public IReadOnlyList<DenSpot> Dens { get; init; } = Array.Empty<DenSpot>();
+
     /// <summary>A copy with its own SDF, so craters don't touch the original.</summary>
-    public Cave Clone() => new()
+    public Cave Clone(IReadOnlyList<DenSpot>? dens = null) => new()
     {
         Sdf = Sdf.Clone(),
         PlayerSpawn = PlayerSpawn,
@@ -47,6 +51,7 @@ public sealed class Cave
         SurfaceY = SurfaceY,
         Loot = Loot,
         Anemones = Anemones,
+        Dens = dens ?? Dens,
     };
 }
 

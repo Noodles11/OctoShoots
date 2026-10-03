@@ -88,7 +88,7 @@ public sealed class Tuning
     [Tune("Ninja")] public bool NestsEnabled = true;
     [Tune("Ninja", 1f, 100f)] public float NinjaHp = 14f;
     [Tune("Ninja", 0.1f, 0.6f)] public float NinjaRadius = 0.32f;
-    [Tune("Ninja", 5f, 60f)] public float NinjaEmergeRange = 22f;
+    [Tune("Ninja", 5f, 60f)] public float NinjaEmergeRange = 11f;
     [Tune("Ninja", 10f, 100f)] public float NinjaReturnRange = 45f;
     [Tune("Ninja", 4f, 40f)] public float NinjaAttackRange = 15f;
     [Tune("Ninja", 0.1f, 2f)] public float NinjaTelegraph = 0.5f;
@@ -98,7 +98,6 @@ public sealed class Tuning
     [Tune("Ninja", 0.05f, 0.5f)] public float NinjaShotRadius = 0.15f;
     [Tune("Ninja", 0f, 50f)] public float NinjaShotDamage = 8f;
     [Tune("Ninja", 5f, 40f)] public float NinjaShotRange = 20f;
-    [Tune("Ninja", 5f, 300f)] public float NinjaRespawnTime = 60f;
     [Tune("Ninja", 0.5f, 6f)] public float SchoolSpeed = 2.2f;
 
     // Ink bombs and craters (§6.3, 2D §4)
@@ -113,7 +112,7 @@ public sealed class Tuning
     [Tune("Bombs & craters", 0f, 1f)] public float BeamCraterRadius = 0.4f;
 
     // Lanternfish (§7)
-    [Tune("Enemy", 0f, 8f)] public int EnemyCount = 3;
+    [Tune("Enemy", 0f, 8f)] public int EnemyCount = 0;
     [Tune("Enemy", 1f, 100f)] public float EnemyHp = 18f;
     [Tune("Enemy", 0.5f, 8f)] public float EnemySpeed = 2.6f;
     [Tune("Enemy", 1f, 20f)] public float EnemyAccel = 6f;

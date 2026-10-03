@@ -5,7 +5,7 @@ namespace OctoShoots.Core.Items;
 
 /// <summary>
 /// One line per real effect, with numbers (2D §29): "+0.3 damage", "×1.5 damage",
-/// "12% chance to freeze foes for 1.6s", "Recharges after 3 encounters".
+/// "12% chance to freeze foes for 1.6s", "Recharges in 30s".
 /// </summary>
 public static class ItemCaption
 {
@@ -45,6 +45,7 @@ public static class ItemCaption
         Stat.BubbleCapacity => "bubbles on the tentacle",
         Stat.BubbleRegrow => "bubble regrowth speed",
         Stat.BubblesPerThrow => "bubbles per throw",
+        Stat.ActiveRecharge => "active item recharge speed",
         _ => s.ToString(),
     };
 
@@ -107,7 +108,7 @@ public static class ItemCaption
             Trigger.OnHit => "Hits ",
             Trigger.OnShoot => "Shots ",
             Trigger.OnDamaged => "When hurt, ",
-            Trigger.OnEncounterClear => "Clearing an encounter ",
+
             Trigger.OnFloorStart => "Each new reef ",
             _ => "",
         };
@@ -119,7 +120,7 @@ public static class ItemCaption
             EffectAction.Bombs => e.Trigger == Trigger.OnPickup ? $"+{N(e.Value)} ink bombs" : $"give {N(e.Value)} ink bombs",
             EffectAction.Frenzy => $"send you into a frenzy: ×{N(e.Value)} fire rate for {N(e.Duration)}s",
             EffectAction.Shards => $"burst into {N(e.Value)} spines",
-            EffectAction.ChargeActive => $"adds {N(e.Value)} extra active charge",
+
             _ => e.Action.ToString(),
         };
         return chance + when + what;
@@ -135,5 +136,5 @@ public static class ItemCaption
         _ => flag,
     };
 
-    static string ActiveLine(ActiveSpec a) => $"Recharges after {a.Charge} encounter{(a.Charge == 1 ? "" : "s")}";
+    static string ActiveLine(ActiveSpec a) => $"Recharges in {N(a.Recharge)}s";
 }

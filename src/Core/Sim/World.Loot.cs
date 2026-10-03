@@ -130,8 +130,8 @@ public sealed partial class World
                 Bombs++;
                 break;
             case PickupKind.GlowJelly:
-                if (ActiveMaxCharge == 0 || ActiveCharge >= ActiveMaxCharge) return false;
-                ActiveCharge = Math.Min(ActiveMaxCharge, ActiveCharge + 2);
+                if (ActiveMaxCharge <= 0f || ActiveReady) return false;
+                RechargeActive(0.3f);
                 break;
         }
         _collectedPlan.Add(k.PlanIndex);
@@ -171,6 +171,12 @@ public sealed partial class World
 
     void DropLoot(Enemy e)
     {
+        // Moon jellies sometimes leave a glow jelly, which recharges the active item.
+        if (e.Kind == EnemyKind.MoonJelly && _combat.NextFloat() < 0.2f)
+        {
+            SpawnPickup(PickupKind.GlowJelly, e.Position, new Vector3(0f, 1f, 0f));
+            return;
+        }
         var kind = LootRules.RollDrop(_combat, Loadout.Stats.Luck);
         if (kind is { } k) SpawnPickup(k, e.Position, new Vector3(0f, 1.5f, 0f));
         if (Loadout.Flags.Contains("richDrops") && _combat.NextFloat() < 0.3f) SpawnPickup(PickupKind.Coin, e.Position, new Vector3(0.5f, 2f, 0f));

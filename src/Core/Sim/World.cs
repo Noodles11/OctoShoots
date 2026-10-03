@@ -23,9 +23,10 @@ public sealed partial class World
     int _nextId = 1;
     bool _restartPending;
 
-    public World(Cave cave, Tuning tuning, ulong seed, ItemCatalog? catalog = null, ISet<string>? unlocked = null)
+    public World(Cave cave, Tuning tuning, ulong seed, ItemCatalog? catalog = null, ISet<string>? unlocked = null, CreatureCatalog? creatures = null)
     {
         Cave = cave;
+        Creatures = creatures;
         Tuning = tuning;
         Seed = seed;
         Catalog = catalog;
@@ -39,6 +40,7 @@ public sealed partial class World
         SyncEnemyCount();
         SetUpLoot(unlocked);
         SetUpNests();
+        SetUpDens();
     }
 
     readonly Vector3[] _spawnOrder;
@@ -73,15 +75,19 @@ public sealed partial class World
         Player.PrevPosition = Player.Position;
         foreach (var e in Enemies) e.PrevPosition = e.Position;
         foreach (var p in Projectiles) p.PrevPosition = p.Position;
+        foreach (var c in Critters) c.PrevPosition = c.Position;
 
         SyncEnemyCount();
         StepPlayer(input);
+        StepActive();
         if (input.UseActive) UseActive();
         if (input.DropBomb) DropBomb();
         StepWeapon(input);
         FlushProjectiles();
+        UpdateSenses();
         StepEnemies(input);
         StepClownfish();
+        StepCritters();
         FlushProjectiles();
         StepProjectiles();
         FlushProjectiles();
@@ -123,9 +129,13 @@ public sealed partial class World
         Clouds.Clear();
         LiveBombs.Clear();
         int lantern = 0;
+        // The reef resets: everything she freed is corrupted again.
+        Critters.RemoveAll(c => c.FreedAge >= 0f);
+        Clownfish.RemoveAll(f => f.Freed);
         foreach (var e in Enemies)
         {
             if (e.Kind == EnemyKind.ClownNinja) ResetNinja(e);
+            else if (IsDenCreature(e.Kind)) SendHome(e);
             else SpawnEnemy(e, _spawnOrder[lantern++ % _spawnOrder.Length]);
         }
     }
@@ -228,6 +238,7 @@ public sealed partial class World
         }
         foreach (var p in Projectiles) MixV(p.Position);
         foreach (var f in Clownfish) MixV(f.Position);
+        foreach (var c in Critters) MixV(c.Position);
         foreach (var c in _craters) MixV(c.Center);
         return h;
     }

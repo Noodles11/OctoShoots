@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../../data/items.json" Link="data/items.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../data/creatures.json" Link="data/creatures.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-# Clementine's Quest 3D
+# Ink Deep
 
 A first-person roguelite shooter in a stylized 3D reef. Design: [`docs/DESIGN-3D.md`](docs/DESIGN-3D.md)
 (on top of [`docs/DESIGN-2D.md`](docs/DESIGN-2D.md)).
@@ -37,7 +37,7 @@ src/Core/         pure C# simulation (no Godot types)
 src/Core.Tests/   xUnit tests for Core
 src/Game/         Godot layer: scene, camera + viewmodel, terrain meshes, FX, HUD, debug panel
 assets/shaders/   terrain, bubble, pearl, mist, sea surface and screen shaders
-docs/             design documents and milestone checklists
+docs/             design documents, the Depth 1 creature/boss proposal and milestone checklists
 ```
 
 ## Requirements

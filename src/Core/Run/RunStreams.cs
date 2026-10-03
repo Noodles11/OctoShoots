@@ -28,6 +28,8 @@ public sealed class RunStreams
     public Rng Chest(int depth, int reef, int chest) => _root.Stream($"chest/{depth}/{reef}/{chest}");
     public Rng Shell(int depth, int reef, int shell) => _root.Stream($"shell/{depth}/{reef}/{shell}");
     public Rng Nests(int depth, int reef) => _root.Stream($"nests/{depth}/{reef}");
+    public Rng Dens(int depth, int reef) => _root.Stream($"dens/{depth}/{reef}");
+    public Rng Critters(int depth, int reef) => _root.Stream($"critters/{depth}/{reef}");
     public Rng Snacks() => _root.Stream("snacks");
     public Rng EnemyAi() => _root.Stream("enemyAI");
     public Rng Combat() => _root.Stream("combat");

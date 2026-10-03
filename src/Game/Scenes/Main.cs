@@ -40,7 +40,11 @@ public partial class Main : Node3D
     TerrainView _terrain = null!;
     LevelFx _levelFx = null!;
     AnemoneViews _anemones = null!;
+    FloraViews _flora = null!;
+    SunLight _sun = null!;
     ClownfishViews _fish = null!;
+    CreatureViews _creatureViews = null!;
+    CreatureCatalog _creatures = null!;
     PlayerCamera _camera = null!;
     ProjectileViews _shots = null!;
     FxParticles _ink = null!;
@@ -76,7 +80,9 @@ public partial class Main : Node3D
         _tuning = SettingsStore.LoadTuning();
         if (_lanternOverride is { } lanterns) _tuning.EnemyCount = lanterns;
         _view = SettingsStore.LoadView();
+        RenderingServer.ViewportSetMeasureRenderTime(GetViewport().GetViewportRid(), true);
         _catalog = LoadCatalog();
+        _creatures = LoadCreatures();
         _save = SaveStore.Load();
 
         BuildEnvironment();
@@ -86,8 +92,12 @@ public partial class Main : Node3D
         AddChild(_levelFx);
         _anemones = new AnemoneViews();
         AddChild(_anemones);
+        _flora = new FloraViews();
+        AddChild(_flora);
         _fish = new ClownfishViews();
         AddChild(_fish);
+        _creatureViews = new CreatureViews();
+        AddChild(_creatureViews);
 
         _camera = new PlayerCamera();
         AddChild(_camera);
@@ -120,6 +130,14 @@ public partial class Main : Node3D
         return catalog;
     }
 
+    static CreatureCatalog LoadCreatures()
+    {
+        using var file = FileAccess.Open("res://data/creatures.json", FileAccess.ModeFlags.Read);
+        var catalog = CreatureCatalog.FromJson(file.GetAsText());
+        GD.Print($"Creatures: {CreatureCatalog.Kinds.Length} kinds");
+        return catalog;
+    }
+
     void BuildEnvironment()
     {
         var env = new Godot.Environment
@@ -128,9 +146,9 @@ public partial class Main : Node3D
             BackgroundColor = MistColor,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
             AmbientLightColor = new Color(0.35f, 0.6f, 0.7f),
-            AmbientLightEnergy = 0.45f,
+            AmbientLightEnergy = 0.38f,
             TonemapMode = Godot.Environment.ToneMapper.Aces,
-            TonemapExposure = 1.1f,
+            TonemapExposure = 1.0f,
             FogEnabled = true,
             FogLightColor = MistColor,
             FogDensity = 0.012f,
@@ -143,14 +161,9 @@ public partial class Main : Node3D
         };
         AddChild(new WorldEnvironment { Environment = env });
 
-        // Light filtering down from the surface. No shadows: the grey-box is a closed cave.
-        AddChild(new DirectionalLight3D
-        {
-            LightColor = new Color(0.6f, 0.9f, 1f),
-            LightEnergy = 0.55f,
-            ShadowEnabled = false,
-            RotationDegrees = new Vector3(-70f, 20f, 0f),
-        });
+        // The sun: its light, shadows, caustics and god rays all share one direction (SunLight, sunlight.gdshaderinc).
+        _sun = new SunLight();
+        AddChild(_sun);
     }
 
     void BuildUi()
@@ -351,6 +364,7 @@ public partial class Main : Node3D
         Mark("camera+reticle");
         SyncEnemies(alpha, frameDt);
         _fish.Sync(_world, alpha, frameDt);
+        _creatureViews.Sync(_world, camXform.Origin, alpha, frameDt);
         _shots.SetColorCycle(_world.Loadout.Flags.Contains("colorCycle"), frameDt);
         _shots.Sync(_world, alpha, _ink, frameDt);
         _levelFx.SyncBombs(_world, alpha, _time);
@@ -360,6 +374,9 @@ public partial class Main : Node3D
         InkTrail(frameDt);
         _ink.Tick(frameDt, camXform.Basis);
         _sparks.Tick(frameDt, camXform.Basis);
+        _sun.SetStrength(_view.SunLight);
+        // Cap the frame rate (and drop it right down while the window is in the background) so the GPU never runs flat out.
+        Engine.MaxFps = !GetWindow().HasFocus() && _captureDir is null ? 15 : _uncapped ? 0 : _view.MaxFps;
         _snow.Tick(frameDt, camXform);
         _lines.Tick(frameDt);
         Mark("fx");

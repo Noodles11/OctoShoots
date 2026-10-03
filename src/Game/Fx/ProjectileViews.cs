@@ -37,6 +37,9 @@ public partial class ProjectileViews : Node3D
     SphereMesh _bubbleMesh = null!;
     ArrayMesh _starMesh = null!;
     StandardMaterial3D _starMaterial = null!;
+    StandardMaterial3D _sporeMaterial = null!;
+    StandardMaterial3D _spineMaterial = null!;
+    PrismMesh _spineMesh = null!;
     SphereMesh _orbMesh = null!;
     PrismMesh _shardMesh = null!;
     float _time;
@@ -89,6 +92,23 @@ public partial class ProjectileViews : Node3D
             AlbedoColor = new Color(1f, 0.75f, 0.25f, 0.45f),
         };
         _orbMesh = new SphereMesh { Radius = 0.2f, Height = 0.4f, RadialSegments = 12, Rings = 6 };
+        // The Spanish Dancer's spores: soft pink-orange glowing globes. Spines: slim ivory darts with a violet glow.
+        _sporeMaterial = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(1f, 0.55f, 0.5f),
+            EmissionEnabled = true,
+            Emission = new Color(1f, 0.35f, 0.3f),
+            EmissionEnergyMultiplier = 3f,
+        };
+        _spineMaterial = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.95f, 0.9f, 0.8f),
+            EmissionEnabled = true,
+            Emission = new Color(0.75f, 0.4f, 1f),
+            EmissionEnergyMultiplier = 1.6f,
+        };
+        _spineMesh = new PrismMesh { Size = new Vector3(0.07f, 0.55f, 0.07f) };
 
         for (int i = 0; i < MaxLights; i++)
         {
@@ -145,6 +165,14 @@ public partial class ProjectileViews : Node3D
                 case ProjectileKind.Shard:
                     view.Body.Scale = Vector3.One;
                     break;
+                case ProjectileKind.Spore:
+                    view.Body.Scale = Vector3.One * (p.Radius / 0.2f) * (1f + 0.12f * Mathf.Sin(p.Age * 9f));
+                    if (GD.Randf() < dt * 10f)
+                        ink.Emit(pos, new Vector3(0f, 0.25f, 0f), 0.6f, 0.05f, 0.07f, new Color(1f, 0.6f, 0.55f, 0.5f), new Color(1f, 0.4f, 0.4f, 0f), 1.5f, 0.6f);
+                    break;
+                case ProjectileKind.Spine:
+                    view.Body.Scale = Vector3.One * (p.Radius / 0.15f);
+                    break;
                 case ProjectileKind.Star:
                     // A tiny starfish spinning flat as it flies, shedding red-orange specks.
                     view.Body.Transform = new Transform3D(new Basis(Vector3.Up, p.Age * 16f).Scaled(Vector3.One * p.Radius * 1.6f), Vector3.Zero);
@@ -157,7 +185,7 @@ public partial class ProjectileViews : Node3D
                     break;
             }
 
-            if (light < MaxLights && p.Kind is not (ProjectileKind.Shard or ProjectileKind.Star))
+            if (light < MaxLights && p.Kind is not (ProjectileKind.Shard or ProjectileKind.Star or ProjectileKind.Spine))
             {
                 var l = _lights[light++];
                 l.Visible = true;
@@ -230,6 +258,21 @@ public partial class ProjectileViews : Node3D
             case ProjectileKind.Star:
             {
                 var body = Mesh(_starMesh, _starMaterial);
+                root.AddChild(body);
+                view = new View { Root = root, Body = body, Kind = kind };
+                break;
+            }
+            case ProjectileKind.Spore:
+            {
+                var body = Mesh(_orbMesh, _sporeMaterial);
+                root.AddChild(body);
+                view = new View { Root = root, Body = body, Kind = kind };
+                break;
+            }
+            case ProjectileKind.Spine:
+            {
+                var body = Mesh(_spineMesh, _spineMaterial);
+                body.RotationDegrees = new Vector3(-90f, 0f, 0f);
                 root.AddChild(body);
                 view = new View { Root = root, Body = body, Kind = kind };
                 break;

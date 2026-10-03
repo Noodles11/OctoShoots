@@ -1,8 +1,8 @@
-# Clementine's Quest 3D — Game Design Document (v0.1, draft)
+# Ink Deep — Game Design Document, 3D (v0.1, draft)
 
 > A first-person roguelite shooter set in a stylized 3D reef. You are
-> **Clementine**, a bioluminescent octopus. You swim through procedural
-> reefs, throws bubbles at hostile sea life and dives toward the bottom of the ocean.
+> **Clementine**, the last octopus of a reef corrupted by the Leak (DESIGN-2D §1). You swim through procedural
+> reefs, free corrupted sea life with your bubbles and dive after your family toward the bottom of the ocean.
 
 This document covers **only what changes** from the 2D design
 ([`DESIGN-2D.md`](DESIGN-2D.md)). Every rule not mentioned here is inherited
@@ -51,7 +51,8 @@ numeric health, pickups, economy, special rooms, meta progression, saves.
 
 ### 3.1 First person (default)
 - FOV **90°** (option 70–110). **No head bob**: the camera stays steady; strokes show only in the arms.
-- **One tentacle in view — the throwing arm.** It reaches in from the bottom right and points at the crosshair like a gun, rolled so its suckers face into the screen. Each sucker holds a **bubble** (§4.1): you can see how many are left and the next one swelling back.
+- **One tentacle in view — the throwing arm.** It reaches in from the bottom right in a relaxed curve, its tip loosely toward the crosshair, rolled so its suckers face into the screen. It floats: a slow drift, a tip that curls and uncurls, and water drag that makes it trail against her movement and turns. Like every one of her arms it has **8 pairs of suckers** in two staggered rows, each a pale raised ring around a rosy cup, shrinking toward the tip. Bubbles (§4.1) sit in the suckers, spread along the arm: you can see how many are left and the next one swelling back.
+- **The skin**: soft and mostly matte, not glossy: a coral-red back dotted with dark chromatophores and pale flecks, a blotchy peach underside with creases and faint freckles, an opal sheen where the two meet, only a faint broken wet sheen, a paler translucent tip; it flushes dark red when she is hurt.
   - Idle: slow sway. Swimming: a ripple runs down the arm. Throw: the tip lunges toward the crosshair. Dash: the arm whips back.
   - **Items change the arm**: glow color, spines (Fire Urchin Spine), crusts (Barnacle Armor), etc.
 - The **inventory tentacle** (item pearls, §6.6) is out of view; it rises along the left only while reviewing (Tab).
@@ -126,6 +127,11 @@ Option: **Off / Low / Medium (default) / High**.
 
 Other modifiers (homing, pierce, spectral, freeze, burn, poison, charm, chain, explosive, grow) work unchanged.
 
+### 4.4 Active items
+- One active item at a time, used with **F**. It **recharges over time**: each item lists its own recharge time (for example Glow Burst 10 s, Bubble Shield 20 s, Conch Horn 30 s, Kraken Call 60 s); there is nothing to clear or kill. A new active item comes charged.
+- The HUD shows a bar filling toward READY with the seconds left.
+- **Active recharge speed** is a stat: Brain Coral gives ×1.35. A **glow jelly** pickup adds 30% of the recharge time.
+
 ## 5. Controls
 
 | Action | Key |
@@ -154,6 +160,14 @@ All rebindable.
 - **Seabed**: a 1 m heightfield — shallow (~18 m above the bottom) at the start, deepening to ~10 m toward the boss reef, rolling dunes, a trench before the boss reef, cliffs around the rim.
 - **Start** in a sunlit corner, ~10 m above the seabed. **Boss reef** in the opposite corner: a giant formation holding the spherical arena (r 17.5 m) with the Crack, reached by **one tunnel**. The dive goes from shallow to deep.
 - **Reef formations**: blended rock ellipsoids rising from the seabed. Cave formations each hold one cave (treasure, shop, curse den, secret cave, 2–3 ordinary caves); 5 + depth plain formations, 3–5 rock arches and 6–10 pillars stand as landmarks in open water.
+- **The ground** is shaped like a real Caribbean fore-reef: **spur-and-groove** ridges and sand channels running down the slope, low sand waves, scattered **boulders** (45 + 8 per depth) and knobbly **patch reefs** ("bommies", 10 + 2 per depth, 3–6 m tall), and formations weathered into limestone **ledges** and pockmarks.
+- **Painted** by `reef_terrain.gdshader`: sand settles on low, flat ground near the seabed (rippled, with shell specks and paler and darker patches); everything else is old reef limestone, crusted pink with coralline algae, furred with green-brown turf on top in the shallows, dark and spotted with orange and purple encrusting sponges under overhangs. Sunlight **caustics** play over upward faces and fade with depth; deeper water turns everything darker and bluer.
+- **Flora** (`FloraPlanner`, decoration only, seeded per reef, about 50 000 plants and animals) follows real reef zonation. The game's 60 m water column stands for about 27 m of real reef, and zonation uses that real depth:
+  - **Turtle grass** (*Thalassia*) meadows on the sandy flats, with **Halimeda** algae, sea rods and small brain corals between them.
+  - Sunlit rock in the shallows (top ~14 m): **elkhorn** and **staghorn** coral, **brain corals**, sea rods.
+  - Down the slope: fewer corals, more **sea rods**, **tube sponges** (yellow, purple, lavender, orange) and **giant barrel sponges**; below that, mostly sponges.
+  - Walls: **sea fans** (*Gorgonia*) turned broadside to the prevailing current, and tube sponges. Caves: only sponges.
+  - Turtle grass, sea fans and sea rods sway in the surge. Each species is drawn as one MultiMesh per 32 m tile and fades out beyond the mist, so only the nearby reef costs anything.
 - **Sea anemones** decorate the seabed: 55 + 8 per depth, rooted on the seabed (found by casting a ray onto the baked terrain, on gentle slopes with open water above), in eight colours, swaying in the current and glowing at the tips. 6 + depth of them (at most 12) are **nests** (§7.5): larger, violet-pink and a little brighter, at least 50 m from the start.
 - Three reefs per depth, the Tank stays single (inherited §31). Everything is drawn from the run seed's `layout/depth/reef` stream; a layout that fails validation retries with the next seeded attempt.
 
@@ -182,13 +196,13 @@ Treasure, shop, curse den, secret cave, Mermaid's Grotto — inherited, now as c
 
 ### 6.6 Items and loot
 - **Items are pearls.** Each item has a hand-picked **2–3 colour gradient** laid out in one of eight patterns (bands, swirl, spots, marble, rings, stripes, speckle, halo) and glows softly from within (`data/items.json`, `pearl`).
-- **Pearl shells**: a pearl rests in a clam shell. The shell **opens when Clementine comes within 4.5 m** (closes past 6.5 m), and the nearest open shell in front of her shows a **floating description**: name, tagline, one line per effect (2D §29) and, in the shop, the price. She takes the pearl by touching it. Shop pearls cost **15 sand dollars** (20 for quality 3–4).
+- **Pearl shells**: a pearl rests inside a **giant clam**, 1.7 m across, modelled on Tridacna: heavy ribs fanning from the hinge, fluted valves whose zigzag lips interlock when shut, mother-of-pearl inside and a glowing electric-blue, turquoise and violet mantle with bright spots along the lip. Shut, the pearl is hidden; the clam breathes, its lid lifting a hair now and then so the pearl's light seeps out of the seam, and a pool of light and a few sparkles give it away from afar. Open, the mantle breathes, the pearl rises out of its bed and a shaft of its light rises above the clam. Each clam opens toward the most open water around it. Shop clams are gilded. The clam **opens when Clementine comes within 4.5 m** (closes past 6.5 m), and the nearest open shell in front of her shows a **floating description**: name, tagline, one line per effect (2D §29) and, in the shop, the price. She takes the pearl by touching it. Shop pearls cost **15 sand dollars** (20 for quality 3–4).
 - Where shells are: treasure, curse den and secret caves (one each, from their pools), the shop (three for sale), the first sealed pocket.
-- **The inventory tentacle**: Clementine holds each pearl on a sucker of a second tentacle, out of view, in pickup order. It has **8 suckers**; pearls beyond that are held but not drawn (for now). Hold **Tab** to review: the tentacle rises vertically along the left of the screen with the suckers turned toward the camera, each pearl labelled; the **mouse wheel** steps through them and the selected pearl's description shows beside it. She can't shoot while reviewing.
+- **The inventory tentacle**: Clementine holds each pearl on a sucker of a second tentacle, out of view, in pickup order. It has **8 pairs of suckers**, one pearl per sucker from the base up; pearls beyond 16 are held but not drawn (for now). Hold **Tab** to review: the tentacle rises vertically along the left of the screen with the suckers turned toward the camera, each pearl labelled; the **mouse wheel** steps through them and the selected pearl's description shows beside it. She can't shoot while reviewing.
 - **Treasure chests** (wooden, 6 + depth on the seabed, one per ordinary cave, some in sealed pockets) burst open when **hit by a shot or a blast**, spilling 2–5 sand dollars plus one or two of: heart, half heart, ink bomb, foam heart, glow jelly.
 - **Loose pickups** (12–18 per reef) lie on the seabed, mostly sand dollars.
 - **Creature drops**: a defeated creature may leave one pickup where it popped (35% sand dollar, then half heart, heart, ink bomb, foam heart, glow jelly); luck tips the odds, Pirate adds coins.
-- Pickups sink and rest on the floor (foam floats up) and are collected on touch; hearts wait while HP is full, glow jellies while the active item is charged. Remora Sucker pulls them in from 6 m.
+- Pickups sink and rest on the floor (foam floats up) and are collected on touch; hearts wait while HP is full, glow jellies while the active item is ready. Remora Sucker pulls them in from 6 m.
 - Taken shells, opened chests, collected pickups and dug coins are saved with the run.
 
 ## 7. Enemies & bosses in 3D
@@ -230,7 +244,7 @@ The first real mob. A **clownfish ninja** looks like an ordinary clownfish excep
 
 | State | Behaviour |
 |---|---|
-| **Nested** | Asleep inside the anemone: invisible, can't be targeted. Wakes when Clementine comes within **22 m** (unless she is hidden by an Ink Cloud). |
+| **Nested** | Asleep inside the anemone: invisible, can't be targeted. Wakes when Clementine comes within **11 m** (unless she is hidden by an Ink Cloud). |
 | **Idle (disguised)** | Swims out and takes a place in the school, moving exactly like the normal fish. Stays off the minimap. Goes back to sleep if she gets farther than **45 m**. |
 | **Telegraph** | When she is within **15 m**, in line of sight and its cooldown is ready: it stops and winds up for **0.5 s** (never below the 0.45 s fairness minimum, §7.2). The headband glows red and pulses, a starfish grows at its mouth, a rising tone plays from its position, and a danger marker shows at the screen edge if it is out of view. |
 | **Throw** | Throws tiny starfish (**9 m/s**, radius 0.15 m, **8 damage**, range 20 m) aimed with half a lead so a dash or a sidestep dodges them: 1 at Depth 1, 2 at Depth 3, 3 at Depth 5 (a 12° fan). Stars stick in rock. |
@@ -238,10 +252,31 @@ The first real mob. A **clownfish ninja** looks like an ordinary clownfish excep
 | **Dead** | Drops loot like any creature (§6.6). The nest sends a new ninja after **60 s**, but only while Clementine is more than 45 m away. |
 
 - Ninjas count toward the limit of 3 creatures attacking from outside the view (§7.2).
+- The other Depth 1 creatures, how far each notices Clementine and the three Depth 1 bosses are in [DEPTH1-BESTIARY.md](DEPTH1-BESTIARY.md).
 - They are hit by every shot modifier and status (freeze, burn, poison, charm, slow, stun) like other creatures.
 - Telegraph, fire rate and damage are in the F1 panel (group "Ninja"); the grey-box cave has one nest ("F1 → Nearest nest" teleports to the closest).
 
+### 7.6 Noticing
+
+Creatures are not blinded by the vision mist (§9): each type has its own **notice range**, set by what it senses with, and some notice Clementine from beyond the mist wall. A creature that notices her startles for 0.6 s with a call and shows on the minimap rim if it is beyond the minimap range. Ranges per creature are in [`DEPTH1-BESTIARY.md`](DEPTH1-BESTIARY.md) §2 and live in `data/creatures.json`.
+
+- **Senses.** Sight needs a clear line of sight; water senses (the Spanish Dancer, the jellies) do not; the crabby feels the seabed, so it notices from farther when she is within 6 m of a surface.
+- **Sneaking.** Ranges halve while she is barely moving (under 0.6 m/s) and double for 2 s after she shoots, dashes or detonates a bomb. An Ink Cloud hides her completely.
+- **Startle and leash.** Noticing starts a 0.6 s startle (a "!" over the creature, a call heard from its direction even beyond the mist), then it acts. Beyond its give-up range, or when she is hidden, it loses her and goes back to its den. Creatures hunting her beyond the minimap range show as arrows on its rim.
+- **Paths.** Swimmers that have no line of sight follow a flow field around the reef (`FlowField`, a 2.5 m lattice flooded outward from her, rebuilt twice a second and after craters).
+- **Dens.** Each den holds creatures asleep; those more than 80 m from her are not simulated. Dens are placed by the reef generator by zone (the shallow corner has only jellies, urchins and dancers) and are seeded like the rest of the layout. Slain den creatures stay dead until she dies; the ninja respawns as in §7.5.
+
 ## 8. Art direction — stylized
+
+- **Sunlight under water** (`SunLight`, `sunlight.gdshaderinc`): one sun direction (steep, a little slanted) drives everything, so a shaft of light in the water always ends in the bright spot it makes below.
+  - **God rays**: the full-screen water pass marches each view ray through the water (14 steps over 48 m, jittered every frame) and gathers light where it crosses a sunbeam. The beams come in every width (broad soft shafts, brighter ones inside them, a few thin needles), drift and breathe with the swell, fade with depth and into the mist, and glow brightest looking toward the sun.
+  - **Caustics and light spots**: rippling caustic nets and soft dappled patches play over every surface turned to the sun: rock, sand, flora and creatures. They are sharp near the surface and softer and fainter deeper down.
+  - **Shade**: a sun shadow map (for every square metre of the surface, the height where its sunbeam first meets rock, rebuilt in the background after craters) keeps shafts and caustics out of the shade of overhangs, arches and caves. The sun's directional light also casts real soft shadows. The reef's outer rim casts none, since it is the edge of the world, not scenery.
+  - **The water's colour** depends on where you look: bright turquoise toward the surface, a glow toward the sun, deep blue below; the deeper Clementine swims, the darker it gets.
+  - **Marine snow** is faint in the shade and glitters as it drifts through a beam.
+  - Option (F1, group Light): sunlight strength (0 turns shafts and caustics off).
+- **Keeping the GPU cool**: the frame rate is capped at 60 (option View → MaxFps, 0 = uncapped) and drops to 15 while the window is in the background; vsync caps it further on slower screens. Measured on an RTX 3090 at a busy spot: about 30 W at the cap against about 160 W uncapped. Other savings: FXAA instead of MSAA, sun shadows in two cascades out to 45 m, flora and creatures lit by sunlight per vertex, cheaper rock noise, flora fading out by 45–60 m (inside the mist).
+
 
 - **Toon shading**: 3-band diffuse ramp, strong rim light, soft fog.
 - **Outlines**: thin dark post-process edges on gameplay objects only (echo of the comic look). Ambient stays soft.

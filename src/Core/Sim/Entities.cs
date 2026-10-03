@@ -61,15 +61,21 @@ public sealed class Player
     public float FrenzyMult = 1f;
     /// <summary>Ink Cloud active: creatures lose track of her.</summary>
     public float HiddenTimer;
+    /// <summary>Counts down from 2 s after she shoots, dashes or detonates a bomb: creatures notice her from twice as far.</summary>
+    public float LoudTimer;
 
     public bool IsDashing => DashTimer > 0f;
     public Vector3 Forward => MathUtil.Forward(Yaw, Pitch);
 }
 
-public enum EnemyKind { Lanternfish, ClownNinja }
+public enum EnemyKind { Lanternfish, ClownNinja, SpanishDancer, Pufferling, Barracuda, MoonJelly, SeaUrchin, Crabby, Moray }
 
 /// <summary>Nested = a clownfish ninja resting inside its anemone: out of sight and out of reach.</summary>
-public enum EnemyState { Idle, Hunt, Telegraph, Recover, Dead, Nested }
+public enum EnemyState { Idle, Hunt, Telegraph, Recover, Dead, Nested,
+    /// <summary>Startled: it has just noticed Clementine (0.6 s), then it acts.</summary>
+    Alert,
+    /// <summary>Mid-attack: a charge, lunge, leap, pulse or swollen chase.</summary>
+    Attack }
 
 /// <summary>Where a fish swims in its school around an anemone.</summary>
 public sealed class SchoolSlot
@@ -86,6 +92,8 @@ public sealed class SchoolSlot
 public sealed class Clownfish
 {
     public int Id;
+    /// <summary>A ninja that was freed this run (it lost its headband and joined the school).</summary>
+    public bool Freed;
     public Vector3 Position;
     public Vector3 PrevPosition;
     public Vector3 Velocity;
@@ -117,6 +125,24 @@ public sealed class Enemy
     public float OrbitSign = 1f;
     public bool OffscreenAttack;
 
+    // Den creatures (DEPTH1-BESTIARY).
+    /// <summary>The den this creature belongs to; groups take turns attacking.</summary>
+    public int Group = -1;
+    /// <summary>Where it sleeps: the surface point of an urchin or moray, or the middle of its patrol.</summary>
+    public Vector3 Anchor;
+    /// <summary>Surface normal at the anchor, for clingers and holes.</summary>
+    public Vector3 Up = Vector3.UnitY;
+    /// <summary>Locked attack direction (charge, lunge, leap).</summary>
+    public Vector3 Aim;
+    /// <summary>General purpose timer: circling time, swollen time, lunge extension.</summary>
+    public float Aux;
+    /// <summary>A small bed urchin: never shoots, weaker thorn.</summary>
+    public bool Small;
+    /// <summary>Per-creature random phase for bobbing.</summary>
+    public float Phase;
+    /// <summary>On the ground (crabby).</summary>
+    public bool Grounded;
+
     // Status effects (2D §9.3 bubble modifiers).
     public float FrozenTimer;
     public float BurnTimer;
@@ -131,7 +157,33 @@ public sealed class Enemy
     public bool Disabled => FrozenTimer > 0f || StunTimer > 0f;
 }
 
-public enum ProjectileKind { Bubble, Pearl, Pellet, Shard, Orb, Star }
+/// <summary>
+/// Healthy sea life (DEPTH1-BESTIARY §8): the same species as the corrupted creatures, in natural colours.
+/// Never a target, never attacks, harmless to touch; it wanders near home and keeps clear of Clementine.
+/// Some are there from the start, the rest are corrupted creatures she has freed.
+/// </summary>
+public sealed class Critter
+{
+    public int Id;
+    public EnemyKind Kind;
+    public Vector3 Position;
+    public Vector3 PrevPosition;
+    public Vector3 Velocity;
+    public Vector3 Facing = -Vector3.UnitZ;
+    /// <summary>Where it lives: the middle of its wandering, or the surface point of an urchin or a moray's hole.</summary>
+    public Vector3 Anchor;
+    public Vector3 Up = Vector3.UnitY;
+    /// <summary>Moray: which way its head points, and how far it is out of the hole.</summary>
+    public Vector3 Aim = Vector3.UnitY;
+    public float Aux;
+    public float Phase;
+    public bool Small;
+    public bool Grounded;
+    /// <summary>Seconds since it was freed, or -1 if it was always healthy.</summary>
+    public float FreedAge = -1f;
+}
+
+public enum ProjectileKind { Bubble, Pearl, Pellet, Shard, Orb, Star, Spore, Spine }
 
 public sealed class Projectile
 {
@@ -221,7 +273,7 @@ public sealed class PearlShell
     public string? ItemId;
     public int Price;
     public bool Open;
-    public Vector3 PearlPosition => Position + new Vector3(0f, 0.45f, 0f);
+    public Vector3 PearlPosition => Position + new Vector3(0f, 0.65f, 0f);
 }
 
 /// <summary>A wooden treasure chest that bursts open when hit.</summary>
@@ -234,6 +286,12 @@ public sealed class TreasureChest
 }
 
 /// <summary>A sphere blown out of the reef; kept per reef and saved (§6.3).</summary>
+/// <summary>
+/// A place where creatures of one kind live (DEPTH1-BESTIARY §4). Count creatures sleep here until Clementine
+/// comes near. Up is the surface normal for clingers and the direction a moray's hole faces.
+/// </summary>
+public sealed record DenSpot(EnemyKind Kind, Vector3 Position, Vector3 Up, int Count, bool Bed = false);
+
 public readonly record struct Crater(Vector3 Center, float Radius);
 
 public enum SimEventType
@@ -267,7 +325,6 @@ public enum SimEventType
     ActiveUsed,
     ActiveNotReady,
     ActiveCharged,
-    EncounterCleared,
     BombDropped,
     TerrainCarved,
     BubblesEmpty,
@@ -280,6 +337,12 @@ public enum SimEventType
     ChestOpened,
     PickupCollected,
     CoinsDugUp,
+    /// <summary>A creature noticed Clementine; Value is how far away it was.</summary>
+    CreatureNoticed,
+    /// <summary>A creature lost track of her and is going home.</summary>
+    CreatureLost,
+    /// <summary>A corrupted creature was freed: EntityId is the healthy critter (or clownfish) it became; Tag its kind; Value 1 if it was frozen.</summary>
+    CreatureFreed,
 }
 
 /// <summary>Something the presentation layer should react to (sound, FX, camera, captions).</summary>

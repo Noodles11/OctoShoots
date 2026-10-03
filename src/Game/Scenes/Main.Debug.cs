@@ -23,6 +23,11 @@ public partial class Main
     bool _openPanel;
     ChamberRole? _startAt;
     bool _startNest;
+    bool _uncapped;
+    Vector2? _look;
+    EnemyKind? _startDen;
+    int _denIndex;
+    bool _denBed;
     bool _ninjaCam;
     int? _lanternOverride;
     string? _captureDir;
@@ -65,6 +70,16 @@ public partial class Main
             ("Secret", () => TeleportTo(ChamberRole.Secret)),
             ("Boss arena", () => TeleportTo(ChamberRole.Boss)));
         _panel.AddButtons(("Nearest nest", TeleportToNest));
+        _panel.AddButtons(
+            ("Dancer", () => TeleportToDen(EnemyKind.SpanishDancer)),
+            ("Pufferling", () => TeleportToDen(EnemyKind.Pufferling)),
+            ("Barracuda", () => TeleportToDen(EnemyKind.Barracuda)),
+            ("Jellies", () => TeleportToDen(EnemyKind.MoonJelly)));
+        _panel.AddButtons(
+            ("Urchin", () => TeleportToDen(EnemyKind.SeaUrchin)),
+            ("Crabby", () => TeleportToDen(EnemyKind.Crabby)),
+            ("Moray", () => TeleportToDen(EnemyKind.Moray)),
+            ("Urchin bed", () => TeleportToDen(EnemyKind.SeaUrchin, bed: true)));
 
         _panel.AddSection("Run");
         _panel.AddTextField("Seed", () => _seed.ToString(), text =>
@@ -104,6 +119,7 @@ public partial class Main
         }, GiveRandomTreasure);
 
         _panel.AddTunables(_tuning, _view);
+        foreach (var (kind, def) in _creatures.All) _panel.AddTunables("Creature: " + kind, def);
         _panel.Refresh();
     }
 
@@ -195,6 +211,17 @@ public partial class Main
             else if (arg == "--panel") _openPanel = true;
             else if (arg == "--greybox") _levelKind = LevelKind.Greybox;
             else if (arg == "--nest") _startNest = true;
+            else if (arg == "--uncapped") _uncapped = true;
+            else if (arg.StartsWith("--look=") && arg["--look=".Length..].Split(',') is [var ly, var lp]
+                && float.TryParse(ly, System.Globalization.CultureInfo.InvariantCulture, out float lookYaw)
+                && float.TryParse(lp, System.Globalization.CultureInfo.InvariantCulture, out float lookPitch))
+                _look = new Vector2(lookYaw, lookPitch);
+            else if (arg.StartsWith("--den=") && arg["--den=".Length..].Split(',') is var denArg && Enum.TryParse<EnemyKind>(denArg[0], true, out var denKind))
+            {
+                _startDen = denKind;
+                if (denArg.Length > 1 && int.TryParse(denArg[1], out int denIndex)) _denIndex = denIndex;
+                if (denArg.Length > 2 && denArg[2] == "bed") _denBed = true;
+            }
             else if (arg == "--ninjacam") _ninjaCam = true;
             else if (arg == "--hideanemones") _hideAnemones = true;
             else if (arg.StartsWith("--lanterns=") && int.TryParse(arg["--lanterns=".Length..], out int lanterns)) _lanternOverride = lanterns;
@@ -228,6 +255,12 @@ public partial class Main
         }
         if (_startAt is { } role) TeleportTo(role);
         if (_startNest) TeleportToNest();
+        if (_startDen is { } den) TeleportToDen(den, _denBed, _denIndex);
+        if (_look is { } look)
+        {
+            _yaw = Mathf.DegToRad(look.X);
+            _pitch = Mathf.DegToRad(look.Y);
+        }
         if (_openPanel) TogglePanel();
     }
 
@@ -312,7 +345,8 @@ public partial class Main
         double process = Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000.0;
         double tris = Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame);
         double draws = Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame);
-        return $"FPS {Engine.GetFramesPerSecond():0}   process {process:0.0} ms   {tris / 1000:0}k tris   {draws:0} draws   tick {_world.Tick}\n{WhereAmI()}\n" +
+        double gpu = RenderingServer.ViewportGetMeasuredRenderTimeGpu(GetViewport().GetViewportRid());
+        return $"FPS {Engine.GetFramesPerSecond():0}   GPU {gpu:0.0} ms   process {process:0.0} ms   {tris / 1000:0}k tris   {draws:0} draws   tick {_world.Tick}\n{WhereAmI()}\n" +
                $"seed {_seed}   bombs {_world.Bombs}   craters {_world.Craters.Count}   ninjas {NinjaSummary()}   fish {_world.Clownfish.Count}\n" +
                $"speed {p.Velocity.Length():0.00} m/s   pos {p.Position.X:0.0}, {p.Position.Y:0.0}, {p.Position.Z:0.0}\n" +
                $"jet {(p.JetTimer > 0 ? "ON" : "-")}   dash {(p.IsDashing ? "ON" : "-")}   floor {(p.OnFloor ? "yes" : "no")}\n" +

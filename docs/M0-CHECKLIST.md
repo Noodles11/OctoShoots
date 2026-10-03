@@ -15,7 +15,7 @@ If not, we fix the feel (or the camera decision) before any content work.
   8 on the suckers, regrowing after a short pause.
 - Aim assist Off / Low / Medium / High: magnetism, bullet bend, sensitivity slowdown.
 - Two creatures. The **clownfish ninja** (see DESIGN-3D §7.5) hides among neutral clownfish at anemone
-  nests and throws tiny starfish after a 0.5 s wind-up. The **Lanternfish** (swimmer): keeps ~7 m away, orbits, fires a slow glowing orb after a
+  nests and throws tiny starfish after a 0.5 s wind-up. The **Lanternfish** (swimmer; moved to Depth 5, off by default): keeps ~7 m away, orbits, fires a slow glowing orb after a
   0.45 s telegraph (glow ramp + rising positional tone). At most 3 off-screen attackers at once;
   red danger markers at the screen edge for off-screen telegraphs and incoming orbs.
 - 100 HP, hurt feedback (magenta edge pulse, chromatic wobble, arm jolts, shake), respawn on death.

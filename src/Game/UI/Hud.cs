@@ -14,8 +14,9 @@ public struct HudState
     public float Charge01;
     public bool Shielded;
     public string? ActiveName;
-    public int ActiveCharge;
-    public int ActiveMax;
+    /// <summary>Seconds built up and seconds needed.</summary>
+    public float ActiveCharge;
+    public float ActiveMax;
     public int Coins;
     public int Bombs;
     public string Status;
@@ -200,7 +201,8 @@ public partial class Hud : Control
         {
             Vector2 p = new(b.Offset.X, -b.Offset.Y);
             float len = p.Length() * pxPerM;
-            if (len > radius - 4f * scale) p = p.Normalized() * (radius - 4f * scale) / pxPerM;
+            bool beyond = len > radius - 4f * scale;
+            if (beyond) p = p.Normalized() * (radius - 4f * scale) / pxPerM;
             Vector2 at = c + p * pxPerM;
             // Fainter the further above or below her.
             float alpha = Mathf.Clamp(1f - Mathf.Abs(b.Dy) / 20f, 0.35f, 1f);
@@ -208,6 +210,16 @@ public partial class Hud : Control
             {
                 case BlipKind.Enemy:
                 case BlipKind.EnemyAlert:
+                    if (beyond)
+                    {
+                        // Out of range: an arrow on the rim pointing at it.
+                        Vector2 outward = (at - c).Normalized();
+                        Vector2 side = new(-outward.Y, outward.X);
+                        float s = (b.Kind == BlipKind.EnemyAlert ? 9f : 7f) * scale;
+                        DrawColoredPolygon(new[] { at + outward * s * 0.7f, at - outward * s * 0.5f + side * s * 0.7f, at - outward * s * 0.5f - side * s * 0.7f },
+                            new Color(1f, b.Kind == BlipKind.EnemyAlert ? 0.9f : 0.25f, 0.25f, 0.95f));
+                        break;
+                    }
                     float r = (b.Kind == BlipKind.EnemyAlert ? 5f : 4f) * scale;
                     DrawCircle(at, r, new Color(1f, b.Kind == BlipKind.EnemyAlert ? 0.9f : 0.25f, 0.25f, alpha));
                     // Above or below: a little tick.
@@ -298,13 +310,14 @@ public partial class Hud : Control
         bool ready = _s.ActiveCharge >= _s.ActiveMax;
         Color text = ready ? new Color(1f, 0.95f, 0.6f) : new Color(1f, 1f, 1f, 0.7f);
         DrawString(font, at + new Vector2(0f, -8f * scale), $"[F] {_s.ActiveName}" + (ready ? "  READY" : ""), HorizontalAlignment.Left, -1, fontSize, text);
-        float pip = Mathf.Min(40f, 300f / Mathf.Max(1, _s.ActiveMax)) * scale;
-        for (int i = 0; i < _s.ActiveMax; i++)
-        {
-            var rect = new Rect2(at + new Vector2(i * pip, 0f), new Vector2(pip - 3f * scale, 16f * scale));
-            DrawRect(rect, new Color(0, 0, 0, 0.55f));
-            if (i < _s.ActiveCharge) DrawRect(rect.Grow(-2f * scale), ready ? new Color(1f, 0.9f, 0.4f, 0.6f + 0.4f * _activeFlash) : new Color(0.6f, 0.85f, 1f));
-        }
+        // A bar filling over the recharge time.
+        var bar = new Rect2(at, new Vector2(300f * scale, 16f * scale));
+        DrawRect(bar, new Color(0, 0, 0, 0.55f));
+        float fill = Mathf.Clamp(_s.ActiveCharge / Mathf.Max(_s.ActiveMax, 0.001f), 0f, 1f);
+        DrawRect(new Rect2(bar.Position + Vector2.One * 2f * scale, new Vector2((bar.Size.X - 4f * scale) * fill, bar.Size.Y - 4f * scale)),
+            ready ? new Color(1f, 0.9f, 0.4f, 0.6f + 0.4f * _activeFlash) : new Color(0.6f, 0.85f, 1f));
+        if (!ready)
+            DrawString(font, at + new Vector2(bar.Size.X + 8f * scale, 13f * scale), $"{Mathf.CeilToInt(_s.ActiveMax - _s.ActiveCharge)}s", HorizontalAlignment.Left, -1, fontSize, new Color(1f, 1f, 1f, 0.7f));
     }
 
     void DrawCard(Card card, Vector2 size, float scale, Font font)

@@ -24,6 +24,7 @@ public sealed partial class World
     {
         if (radius <= 0f || Sdf.CarveSphere(center, radius, Cave.ShellCells) is null) return false;
         _craters.Add(new Crater(center, radius));
+        _flow?.Invalidate(center, radius);
         DigUpCoins(center, radius, announce);
         if (announce) Events.Add(new SimEvent(SimEventType.TerrainCarved, center, Vector3.UnitY, -1, radius));
         return true;

@@ -42,7 +42,8 @@ public sealed class SuspendedRun
     public int Depth { get; set; } = 1;
     public int Reef { get; set; } = 1;
     public List<string> Items { get; set; } = new();
-    public int ActiveCharge { get; set; }
+    /// <summary>Seconds of recharge already built up on the held active item.</summary>
+    public float ActiveCharge { get; set; }
     public float Hp { get; set; }
     public float Foam { get; set; }
     public int Coins { get; set; }

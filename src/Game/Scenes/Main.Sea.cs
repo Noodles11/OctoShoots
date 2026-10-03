@@ -125,10 +125,10 @@ public partial class Main
         float range = _view.MinimapRange * 1.15f;
         var blips = new List<Blip>();
 
-        void Add(System.Numerics.Vector3 at, BlipKind kind, Color? tint = null)
+        void Add(System.Numerics.Vector3 at, BlipKind kind, Color? tint = null, bool always = false)
         {
             var rel = at - p;
-            if (rel.X * rel.X + rel.Z * rel.Z > range * range) return;
+            if (!always && rel.X * rel.X + rel.Z * rel.Z > range * range) return;
             blips.Add(new Blip(new Vector2(System.Numerics.Vector3.Dot(rel, right), System.Numerics.Vector3.Dot(rel, forward)), rel.Y, kind, tint));
         }
 
@@ -143,6 +143,13 @@ public partial class Main
         {
             // A disguised ninja stays off the map until it gives itself away.
             if (e.Kind == EnemyKind.ClownNinja && e.State == EnemyState.Idle) continue;
+            // Sleeping creatures stay off the map; hunters show even far beyond it, as arrows on its rim.
+            if (World.IsDenCreature(e.Kind))
+            {
+                if (e.State == EnemyState.Idle) continue;
+                Add(e.Position, e.State is EnemyState.Telegraph or EnemyState.Attack ? BlipKind.EnemyAlert : BlipKind.Enemy, always: true);
+                continue;
+            }
             Add(e.Position, e.State == EnemyState.Telegraph ? BlipKind.EnemyAlert : BlipKind.Enemy);
         }
         return blips;

@@ -22,10 +22,14 @@ public sealed partial class World
     int ReefDepth => Math.Max(1, Cave.Loot.Depth);
 
     /// <summary>Wind-up time of a creature's attack, for telegraph visuals and danger markers.</summary>
-    public float TelegraphTime(Enemy e) => e.Kind == EnemyKind.ClownNinja ? Tuning.NinjaTelegraph : Tuning.EnemyTelegraph;
+    public float TelegraphTime(Enemy e) =>
+        IsDenCreature(e.Kind) && Creatures is not null ? Creatures[e.Kind].Telegraph
+        : e.Kind == EnemyKind.ClownNinja ? Tuning.NinjaTelegraph : Tuning.EnemyTelegraph;
 
     /// <summary>Hit radius of a creature.</summary>
-    public float RadiusOf(Enemy e) => e.Kind == EnemyKind.ClownNinja ? Tuning.NinjaRadius : Tuning.EnemyRadius;
+    public float RadiusOf(Enemy e) =>
+        IsDenCreature(e.Kind) && Creatures is not null ? Creatures[e.Kind].Radius * ScaleOf(e)
+        : e.Kind == EnemyKind.ClownNinja ? Tuning.NinjaRadius : Tuning.EnemyRadius;
 
     void SetUpNests()
     {

@@ -17,7 +17,7 @@ namespace OctoShoots.Core.Gen;
 /// Baked into a sparse 0.5 m voxel SDF (clamped to ±4 m so open water and deep rock stay uniform)
 /// and validated with flood fills. Failed layouts retry with the next seeded attempt.
 /// </summary>
-public static class ReefGenerator
+public static partial class ReefGenerator
 {
     public const float Cell = 0.5f;
     public const float Shell = 2f;
@@ -39,6 +39,14 @@ public static class ReefGenerator
         readonly List<(Vector2 At, float R)> _taken = new();
 
         public void Reserve(Vector2 at, float r) => _taken.Add((at, r));
+
+        /// <summary>A copy that sees everything placed so far; what it places does not block this one.</summary>
+        public Placer Fork()
+        {
+            var copy = new Placer(rng, width, length);
+            copy._taken.AddRange(_taken);
+            return copy;
+        }
 
         public bool TryPlace(float r, float border, float gap, out Vector2 at, int tries = 80, Func<Vector2, bool>? accept = null)
         {
@@ -258,11 +266,50 @@ public static class ReefGenerator
         for (int i = 0; i < loose; i++)
             if (placer.TryPlace(1.2f, 30f, 1f, out var at)) loot.Pickups.Add(new PickupSpot(new Vector3(at.X, Floor(at.X, at.Y) + 0.3f, at.Y), LootRules.RollLoose(rng)));
 
+        // ── boulders and patch reefs on the open seabed ──
+        // They keep clear of the loot and caves but don't crowd out the anemones placed later (those may sit on top).
+        var rocks = placer.Fork();
+        int boulders = 45 + 8 * spec.Depth;
+        for (int i = 0; i < boulders; i++)
+        {
+            float r = rng.Range(0.7f, 2.4f);
+            if (!rocks.TryPlace(r + 0.5f, 28f, 1.5f, out var at, 40)) continue;
+            var c = new Vector3(at.X, Floor(at.X, at.Y) + r * rng.Range(0.1f, 0.45f), at.Y);
+            uint bs = seed + 300u + (uint)i;
+            var squash = new Vector3(1f, rng.Range(0.55f, 0.85f), rng.Range(0.8f, 1.15f));
+            rock.Add(Box(c, new Vector3(r * 1.4f), p => Ellipsoid(p, c, squash * r) + 0.3f * r * Noise((p - c) * (1.4f / r), bs)));
+        }
+        // Patch reefs ("bommies"): knobbly coral heads a few metres tall, where the reef life crowds.
+        int bommies = 10 + 2 * spec.Depth;
+        for (int i = 0; i < bommies; i++)
+        {
+            float r = rng.Range(2.2f, 3.6f);
+            if (!rocks.TryPlace(r + 1.5f, 30f, 3f, out var at, 60)) continue;
+            float h = Floor(at.X, at.Y);
+            float top = MathF.Min(h + rng.Range(3f, 6.5f), surface - 4f);
+            var lumps = new List<(Vector3 C, float R)> { (new Vector3(at.X, h + (top - h) * 0.4f, at.Y), r) };
+            int knobs = 3 + rng.Int(3);
+            for (int k = 0; k < knobs; k++)
+            {
+                float a = rng.Range(0f, MathF.Tau);
+                lumps.Add((new Vector3(at.X + MathF.Cos(a) * r * 0.6f, rng.Range(h + 1f, top), at.Y + MathF.Sin(a) * r * 0.6f), rng.Range(0.9f, 1.8f)));
+            }
+            uint bs = seed + 500u + (uint)i;
+            var centre = new Vector3(at.X, (h + top) * 0.5f, at.Y);
+            rock.Add(Box(centre, new Vector3(r * 1.8f, (top - h) * 0.5f + 2f, r * 1.8f), p =>
+            {
+                float d = float.MaxValue;
+                foreach (var (lc, lr) in lumps) d = SMin(d, Sphere(p, lc, lr), 1.2f);
+                return d + 0.35f * Noise(p * 0.9f, bs);
+            }));
+        }
+
         // ── bake ──
         var sdf = Bake(W, D, H, heights, rock, carve, late, plugs, seed);
         var startPos = new Vector3(start2.X, MathF.Min(Floor(start2.X, start2.Y) + 10f, surface - 4f), start2.Y);
         var enemySpawns = PlaceSpawns(rng, sdf, chambers, W, D, surface, Floor, spec.Depth);
         var anemones = PlaceAnemones(rng, placer, sdf, Floor, start2, spec);
+        var dens = PlaceDens(rng, sdf, Floor, start2, boss2, formations, chambers, W, D, surface, spec);
         var cleanLoot = new LootPlan
         {
             Depth = loot.Depth,
@@ -282,6 +329,7 @@ public static class ReefGenerator
             EnemySpawns = enemySpawns,
             Loot = cleanLoot,
             Anemones = anemones,
+            Dens = dens,
         };
         return new ReefLayout
         {
@@ -386,6 +434,14 @@ public static class ReefGenerator
                 float h = 18f - 8f * t;
                 h += 4f * Noise(new Vector3(x * 0.02f, 0f, z * 0.02f), seed + 101u) + 2f * Noise(new Vector3(x * 0.045f, 3f, z * 0.045f), seed + 103u);
                 h += 1.2f * Noise(new Vector3(x * 0.11f, 7f, z * 0.11f), seed + 107u);
+                // Spur-and-groove: long sand channels between coral spurs, running down the slope (the fore-reef).
+                float along = Vector2.Dot(p - start, axis) / MathF.Sqrt(axisLen2);
+                float across = (p.X - start.X) * -axis.Y / MathF.Sqrt(axisLen2) + (p.Y - start.Y) * axis.X / MathF.Sqrt(axisLen2);
+                float wobble = 3f * Noise(new Vector3(along * 0.03f, 11f, across * 0.03f), seed + 109u);
+                float spur = 1f - MathF.Abs(Noise(new Vector3((across + wobble) * 0.09f, 13f, along * 0.012f), seed + 113u));
+                h += 1.8f * (spur * spur - 0.5f) * MathUtil.Smoothstep((t - 0.15f) / 0.25f);
+                // Low sand waves.
+                h += 0.35f * MathF.Sin(along * 0.45f + 2f * Noise(new Vector3(x * 0.05f, 17f, z * 0.05f), seed + 127u));
                 float toBoss = Vector2.Distance(p, boss);
                 h -= 4f * MathF.Exp(-(toBoss - 34f) * (toBoss - 34f) / 200f);
                 float edge = MathF.Min(MathF.Min(x, W - x), MathF.Min(z, D - z));
@@ -479,7 +535,18 @@ public static class ReefGenerator
 
                 foreach (var s in r)
                     if (BoxDistance(p, s) < open + 2f) open = SMin(open, s.Sdf(p), 2f);
-                if (MathF.Abs(open) < 6f) open += 0.8f * Noise(p * 0.17f, seed) + 0.35f * Noise(p * 0.45f, seed + 17u);
+                if (MathF.Abs(open) < 6f)
+                {
+                    open += 0.8f * Noise(p * 0.17f, seed) + 0.35f * Noise(p * 0.45f, seed + 17u) + 0.15f * Noise(p * 1.1f, seed + 29u);
+                    // Rock above the seabed weathers into limestone ledges and pockmarks.
+                    float aboveSeabed = p.Y - columnH[column];
+                    if (aboveSeabed > 1.5f)
+                    {
+                        float strata = MathF.Sin(p.Y * 1.4f + 2.5f * Noise(p * 0.08f, seed + 31u));
+                        float k = MathUtil.Smoothstep((aboveSeabed - 1.5f) / 3f);
+                        open += k * (0.28f * strata - 0.22f * MathF.Max(0f, Noise(p * 0.7f, seed + 37u)));
+                    }
+                }
                 foreach (var s in c)
                     if (BoxDistance(p, s) < margin) open = SMax(open, -s.Sdf(p), 1f);
                 foreach (var s in l)
@@ -526,7 +593,7 @@ public static class ReefGenerator
                 if (nest && Vector2.Distance(at, start) < 50f) return false;
                 if (!Snap(sdf, at.X, at.Y, floor(at.X, at.Y), out pos, out up) || up.Y < 0.8f) return false;
                 // Open water above it, wide enough for tentacles: no overhang or crevice.
-                return sdf.Sample(pos + up * (r * 1.3f)) > r * 0.9f && sdf.Sample(pos + up * (r * 0.6f)) > 0.15f;
+                return sdf.Sample(pos + up * (r * 1.3f)) > r * 0.9f && sdf.Sample(pos + up * (r * 0.6f)) > 0.15f && sdf.Sample(pos + up * 0.4f) > 0.25f;
             }
             // Nests are the point: try much harder for them than for decoration.
             if (!placer.TryPlace(r + 0.5f, 28f, nest ? 4f : 1.5f, out _, nest ? 300 : 60, Accept)) continue;

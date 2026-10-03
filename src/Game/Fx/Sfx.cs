@@ -42,6 +42,11 @@ public partial class Sfx : Node
         _sounds["emerge"] = Make(0.22f, (t, n) => (Sweep(t, 0.22f, 220f, 520f) * 0.5f + n * 0.25f) * Env(t, 0.01f, 0.22f) * 0.55f);
         _sounds["coin"] = Make(0.16f, (t, n) => (MathF.Sin(MathF.Tau * 1320f * t) + 0.6f * MathF.Sin(MathF.Tau * (t < 0.05f ? 990f : 1760f) * t)) * Env(t, 0.002f, 0.16f) * 0.22f);
         _sounds["chime"] = Make(0.5f, (t, n) => (MathF.Sin(MathF.Tau * 880f * t) + MathF.Sin(MathF.Tau * 1318f * t) * 0.6f) * Env(t, 0.01f, 0.5f) * 0.18f);
+        // Creature calls: a barracuda's hiss, a pufferling's squeak, clicks for the hard-shelled, a gurgle for the soft.
+        _sounds["hiss"] = Make(0.5f, (t, n) => n * Env(t, 0.05f, 0.5f) * 0.55f + Sweep(t, 0.5f, 1800f, 3200f) * Env(t, 0.05f, 0.5f) * 0.12f);
+        _sounds["squeak"] = Make(0.2f, (t, n) => Sweep(t, 0.2f, 900f, 2200f) * Env(t, 0.004f, 0.2f) * 0.4f);
+        _sounds["click"] = Make(0.2f, (t, n) => MathF.Sign(MathF.Sin(MathF.Tau * 260f * t)) * Env(t, 0.001f, 0.03f) * 0.3f + MathF.Sign(MathF.Sin(MathF.Tau * 330f * (t - 0.09f))) * (t > 0.09f ? Env(t - 0.09f, 0.001f, 0.03f) : 0f) * 0.3f);
+        _sounds["gurgle"] = Make(0.35f, (t, n) => MathF.Sin(MathF.Tau * (180f + 60f * MathF.Sin(t * 40f)) * t) * Env(t, 0.01f, 0.35f) * 0.4f + n * Env(t, 0.005f, 0.1f) * 0.1f);
         _sounds["nope"] = Make(0.12f, (t, n) => MathF.Sign(MathF.Sin(MathF.Tau * 140f * t)) * Env(t, 0.002f, 0.12f) * 0.15f);
 
         for (int i = 0; i < 10; i++)

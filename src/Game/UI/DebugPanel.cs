@@ -140,6 +140,14 @@ public partial class DebugPanel : PanelContainer
         }
     }
 
+    /// <summary>One control per [Tune] field of the target, all under one heading.</summary>
+    public void AddTunables(string heading, object target)
+    {
+        AddSection(heading);
+        foreach (var field in target.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            if (field.GetCustomAttribute<TuneAttribute>() is { } tune) _list.AddChild(Row(target, field, tune));
+    }
+
     Control Row(object target, FieldInfo field, TuneAttribute tune)
     {
         var row = new HBoxContainer();

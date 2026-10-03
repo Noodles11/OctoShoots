@@ -21,6 +21,8 @@ public enum Stat
     BubbleCapacity,
     BubbleRegrow,
     BubblesPerThrow,
+    /// <summary>How fast the held active item recharges (1 = its listed recharge time).</summary>
+    ActiveRecharge,
 }
 
 public enum StatOp { Add, Mult }
@@ -115,9 +117,9 @@ public sealed class ShotSpec
     static float Combine(float a, float b) => 1f - (1f - a) * (1f - b);
 }
 
-public enum Trigger { OnPickup, OnShoot, OnHit, OnKill, OnDamaged, OnEncounterClear, OnFloorStart }
+public enum Trigger { OnPickup, OnShoot, OnHit, OnKill, OnDamaged, OnFloorStart }
 
-public enum EffectAction { Heal, Foam, Coins, Bombs, Frenzy, Shards, ChargeActive }
+public enum EffectAction { Heal, Foam, Coins, Bombs, Frenzy, Shards }
 
 /// <summary>"When X happens, do Y" (2D §9.1 triggers).</summary>
 public sealed class TriggerEffect
@@ -157,8 +159,8 @@ public enum ActiveAction
 
 public sealed class ActiveSpec
 {
-    /// <summary>Encounters needed for a full charge.</summary>
-    public int Charge { get; set; }
+    /// <summary>Seconds to recharge fully after use.</summary>
+    public float Recharge { get; set; }
     public ActiveAction Action { get; set; }
     public float Value { get; set; }
     public float Duration { get; set; }

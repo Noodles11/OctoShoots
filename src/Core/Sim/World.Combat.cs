@@ -28,15 +28,8 @@ public sealed partial class World
             {
                 e.RespawnTimer -= Dt;
                 if (e.RespawnTimer > 0f) continue;
-                // Ninjas come back to their anemone, but only while Clementine is well away.
-                if (e.Kind == EnemyKind.ClownNinja)
-                {
-                    if (Vector3.Distance(Cave.Anemones[e.HomeAnemone].Position, p.Position) > t.NinjaReturnRange) ResetNinja(e);
-                }
-                else
-                {
-                    SpawnEnemy(e, PickRespawnPoint());
-                }
+                if (IsFreeable(e.Kind)) continue; // freed for good until she dies
+                SpawnEnemy(e, PickRespawnPoint());
                 continue;
             }
             if (e.State == EnemyState.Nested)
@@ -44,6 +37,10 @@ public sealed partial class World
                 StepNestedNinja(e);
                 continue;
             }
+
+            // Dens far away sleep: they cost nothing until she comes within range.
+            if (IsDenCreature(e.Kind) && e.State == EnemyState.Idle
+                && Vector3.DistanceSquared(e.Position, p.Position) > SimRange * SimRange) continue;
 
             e.HurtTimer -= Dt;
             e.AttackCooldown -= Dt;
@@ -67,14 +64,20 @@ public sealed partial class World
             if (e.Disabled)
             {
                 // Frozen or stunned: drift to a stop, no attacks, harmless to touch.
+                if (IsClinger(e.Kind)) continue;
                 e.Velocity = MathUtil.MoveToward(e.Velocity, Vector3.Zero, 12f * Dt);
-                MoveSphere(ref e.Position, ref e.Velocity, t.EnemyRadius);
+                MoveSphere(ref e.Position, ref e.Velocity, RadiusOf(e));
                 continue;
             }
 
             if (e.Kind == EnemyKind.ClownNinja)
             {
                 StepNinja(e, view, cosView, ref offscreenActive);
+                continue;
+            }
+            if (IsDenCreature(e.Kind))
+            {
+                StepCreature(e, view, cosView, ref offscreenActive);
                 continue;
             }
 
@@ -238,7 +241,7 @@ public sealed partial class World
         }
         if (Sdf.Sample(shot.Position) < 0.08f)
         {
-            Events.Add(new SimEvent(SimEventType.ShotHitTerrain, shot.Position, Sdf.Gradient(shot.Position), shot.Id, 0f, shot.Kind == ProjectileKind.Star ? "star" : null));
+            Events.Add(new SimEvent(SimEventType.ShotHitTerrain, shot.Position, Sdf.Gradient(shot.Position), shot.Id, 0f, shot.Kind switch { ProjectileKind.Star => "star", ProjectileKind.Spore => "spore", ProjectileKind.Spine => "spine", _ => null }));
             shot.Alive = false;
             return;
         }
@@ -417,12 +420,26 @@ public sealed partial class World
             e.Velocity += dir * knockback;
             Events.Add(new SimEvent(SimEventType.EnemyHurt, e.Position, dir, e.Id, damage));
         }
-        if (e.Hp > 0f) return;
+        if (e.Hp > 0f)
+        {
+            // A bubble on a swollen pufferling makes it burst at once.
+            if (e.Kind == EnemyKind.Pufferling && e.State == EnemyState.Attack) e.StateTimer = 0f;
+            return;
+        }
 
         bool frozen = e.FrozenTimer > 0f;
         e.State = EnemyState.Dead;
-        e.RespawnTimer = e.Kind == EnemyKind.ClownNinja ? Tuning.NinjaRespawnTime : Tuning.EnemyRespawnDelay;
-        Events.Add(new SimEvent(SimEventType.EnemyDied, e.Position, dir, e.Id, 0f, frozen ? "shatter" : null));
+        if (IsFreeable(e.Kind))
+        {
+            // Corrupted sea life is freed, not killed: it carries on healthy (DEPTH1-BESTIARY §8.2).
+            e.RespawnTimer = float.PositiveInfinity;
+            Free(e, dir, frozen);
+        }
+        else
+        {
+            e.RespawnTimer = Tuning.EnemyRespawnDelay;
+            Events.Add(new SimEvent(SimEventType.EnemyDied, e.Position, dir, e.Id, 0f, frozen ? "shatter" : null));
+        }
         if (frozen) SpawnShards(e.Position, 4); // frozen foes shatter into shards (2D §9.3)
         DropLoot(e);
         OnEnemyKilled(e);

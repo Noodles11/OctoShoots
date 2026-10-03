@@ -26,18 +26,10 @@ public partial class MarineSnow : Node3D
             _phase[i] = (float)random.NextDouble() * 10f;
         }
 
-        var material = new StandardMaterial3D
-        {
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
-            AlbedoColor = new Color(0.75f, 0.9f, 1f, 0.35f),
-            AlbedoTexture = FxParticles.SoftCircle(),
-            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            DistanceFadeMode = BaseMaterial3D.DistanceFadeModeEnum.PixelAlpha,
-            DistanceFadeMinDistance = Half,
-            DistanceFadeMaxDistance = 0.3f,
-        };
+        // Faint in the shade, glittering where a sunbeam catches them (marine_snow.gdshader).
+        var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/marine_snow.gdshader") };
+        material.SetShaderParameter("speck", FxParticles.SoftCircle());
+        material.SetShaderParameter("fade_far", Half);
         _multimesh = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,

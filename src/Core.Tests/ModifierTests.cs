@@ -361,12 +361,12 @@ public class ModifierTests
     {
         var world = WithItems(1, "conch_horn");
         var e = ItemWorlds.Place(world, 0, new Vector3(5f, 0f, 0f));
-        Assert.Equal(3, world.ActiveCharge);
+        Assert.Equal(30f, world.ActiveCharge);
         var input = ItemWorlds.LookPlusX();
         input.UseActive = true;
         world.Step(input);
         Assert.True(e.StunTimer > 0f);
-        Assert.Equal(0, world.ActiveCharge);
+        Assert.Equal(0f, world.ActiveCharge);
         Assert.Contains(world.Events, ev => ev.Type == SimEventType.ActiveUsed && ev.Tag == "conch_horn");
 
         world.Step(input);
@@ -374,19 +374,55 @@ public class ModifierTests
     }
 
     [Fact]
-    public void KillsRechargeTheActive()
+    public void ActivesRechargeOverTime()
     {
-        var world = ItemWorlds.Create(1, tweak: t => t.EnemyHp = 1f);
-        world.KillsPerEncounter = 1;
-        world.GiveItem("bubble_shield");
+        var world = WithItems(0, "bubble_shield"); // 20 s
         var use = ItemWorlds.LookPlusX();
         use.UseActive = true;
         world.Step(use);
-        Assert.Equal(0, world.ActiveCharge);
+        Assert.Equal(0f, world.ActiveCharge, 1);
+        Assert.False(world.ActiveReady);
 
-        ItemWorlds.Place(world, 0, new Vector3(4f, 0f, 0f));
-        ItemWorlds.FireOnce(world);
-        Assert.True(ItemWorlds.RunUntil(world, w => w.ActiveCharge == 1, 60));
+        TestWorlds.Run(world, ItemWorlds.LookPlusX(), 60 * 10);
+        Assert.Equal(10f, world.ActiveCharge, 1);
+        Assert.False(world.ActiveReady);
+
+        bool announced = false;
+        for (int i = 0; i < 60 * 10 + 5; i++)
+        {
+            world.Step(ItemWorlds.LookPlusX());
+            announced |= world.Events.Any(e => e.Type == SimEventType.ActiveCharged);
+        }
+        Assert.True(world.ActiveReady);
+        Assert.True(announced);
+    }
+
+    [Fact]
+    public void BrainCoralSpeedsUpRecharging()
+    {
+        float ChargeAfterTenSeconds(params string[] items)
+        {
+            var world = WithItems(0, items);
+            var use = ItemWorlds.LookPlusX();
+            use.UseActive = true;
+            world.Step(use);
+            TestWorlds.Run(world, ItemWorlds.LookPlusX(), 60 * 10);
+            return world.ActiveCharge;
+        }
+
+        Assert.Equal(ChargeAfterTenSeconds("conch_horn") * 1.35f, ChargeAfterTenSeconds("conch_horn", "brain_coral"), 0);
+    }
+
+    [Fact]
+    public void GlowJelliesAddAShareOfTheRecharge()
+    {
+        var world = WithItems(0, "conch_horn"); // 30 s
+        var use = ItemWorlds.LookPlusX();
+        use.UseActive = true;
+        world.Step(use);
+        world.Pickups.Add(new Pickup { Id = 9001, Kind = OctoShoots.Core.Loot.PickupKind.GlowJelly, Position = world.Player.Position, PrevPosition = world.Player.Position });
+        world.Step(ItemWorlds.LookPlusX());
+        Assert.InRange(world.ActiveCharge, 9f, 9.1f);
     }
 
     [Fact]

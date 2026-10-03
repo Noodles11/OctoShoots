@@ -15,6 +15,9 @@ public partial class PlayerCamera : Node3D
 
     float _trauma;
     float _shakeTime;
+    Vector3 _lastPosition;
+    float _lastYaw, _lastPitch;
+    bool _hasLast;
 
     public override void _Ready()
     {
@@ -57,9 +60,23 @@ public partial class PlayerCamera : Node3D
         float shakePitch = Mathf.Sin(_shakeTime * 1.7f + 1f) * 0.05f * shake;
         float shakeRoll = Mathf.Sin(_shakeTime * 1.1f + 2f) * 0.04f * shake;
 
+        // How she moves and turns, in view space, so the arm can trail in the water.
+        Vector3 velocity = Vector3.Zero;
+        float yawRate = 0f, pitchRate = 0f;
+        if (_hasLast && dt > 1e-4f)
+        {
+            velocity = Basis.FromEuler(new Vector3(pitch, yaw, 0f)).Inverse() * ((position - _lastPosition) / dt);
+            yawRate = Mathf.AngleDifference(_lastYaw, yaw) / dt;
+            pitchRate = (pitch - _lastPitch) / dt;
+        }
+        _lastPosition = position;
+        _lastYaw = yaw;
+        _lastPitch = pitch;
+        _hasLast = true;
+
         GlobalPosition = position;
         Rotation = new Vector3(pitch + shakePitch, yaw + shakeYaw, 0f);
         Camera.Rotation = new Vector3(0f, 0f, shakeRoll);
-        Viewmodel.Tick(dt, speed01);
+        Viewmodel.Tick(dt, speed01, velocity, yawRate, pitchRate);
     }
 }

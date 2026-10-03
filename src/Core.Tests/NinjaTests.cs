@@ -78,7 +78,7 @@ public class NinjaTests
         TestWorlds.Run(world, Face(world), 30);
         Assert.Equal(EnemyState.Nested, Ninja(world).State);
 
-        PlaceAt(world, 15f);
+        PlaceAt(world, 9f);
         world.Step(Face(world));
         Assert.Equal(EnemyState.Idle, Ninja(world).State);
         Assert.Contains(world.Events, e => e.Type == SimEventType.NinjaEmerged);
@@ -89,7 +89,7 @@ public class NinjaTests
     public void FarFromTheNestItGoesBackToSleep()
     {
         var world = Nest();
-        PlaceAt(world, 15f);
+        PlaceAt(world, 9f);
         world.Step(Face(world));
         Assert.Equal(EnemyState.Idle, Ninja(world).State);
 
@@ -107,7 +107,7 @@ public class NinjaTests
     public void WhileDisguisedItSwimsInTheSchoolLikeTheOthers()
     {
         var world = Nest(t => t.NinjaAttackRange = 0f); // never attacks, only hides
-        PlaceAt(world, 18f);
+        PlaceAt(world, 9f);
         TestWorlds.Run(world, Face(world), 60 * 8);
         var anemone = Home(world);
         var ninja = Ninja(world);
@@ -227,7 +227,7 @@ public class NinjaTests
             ninja.Velocity = Vector3.Zero;
             ninja.AttackCooldown = 99f;
             world.Step(fire);
-            died = world.Events.Any(e => e.Type == SimEventType.EnemyDied);
+            died = world.Events.Any(e => e.Type == SimEventType.CreatureFreed);
         }
         Assert.True(died);
         Assert.Equal(EnemyState.Dead, ninja.State);
@@ -235,20 +235,30 @@ public class NinjaTests
     }
 
     [Fact]
-    public void ADefeatedNinjaReturnsOnlyWhileClementineIsAway()
+    public void AFreedNinjaJoinsItsSchoolAsAnOrdinaryClownfish()
     {
-        var world = Nest(t => t.NinjaRespawnTime = 1f);
+        var world = Nest();
+        int school = world.Clownfish.Count;
+        PlaceAt(world, 9f);
+        world.Step(Face(world));
         var ninja = Ninja(world);
-        ninja.State = EnemyState.Dead;
-        ninja.RespawnTimer = 1f;
-        PlaceAt(world, 20f);
-        TestWorlds.Run(world, Face(world), 120);
+        ninja.Hp = 0.01f;
+        world.Teleport(ninja.Position + new Vector3(-4f, 0f, 0f));
+        var fire = new PlayerInput { Yaw = MathUtil.Deg2Rad * -90f, Fire = true, ViewHalfAngleDeg = 45f };
+        for (int i = 0; i < 90 && ninja.Alive; i++)
+        {
+            ninja.Position = ninja.PrevPosition = world.Player.Position + new Vector3(4f, 0f, 0f);
+            ninja.AttackCooldown = 99f;
+            world.Step(fire);
+        }
         Assert.Equal(EnemyState.Dead, ninja.State);
+        Assert.Equal(school + 1, world.Clownfish.Count);
+        Assert.True(world.Clownfish.Last().Freed);
 
-        PlaceAt(world, 60f);
-        TestWorlds.Run(world, Face(world), 5);
-        Assert.Equal(EnemyState.Nested, ninja.State);
-        Assert.Equal(world.Tuning.NinjaHp, ninja.Hp);
+        // It stays freed: the nest sends no new ninja, however long she stays away.
+        PlaceAt(world, 80f);
+        TestWorlds.Run(world, Face(world), 60 * 90);
+        Assert.Equal(EnemyState.Dead, ninja.State);
     }
 
     [Fact]

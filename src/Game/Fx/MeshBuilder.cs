@@ -83,6 +83,61 @@ public sealed class MeshBuilder
             Quad(ids[r][s], ids[r][(s + 1) % segments], ids[r + 1][(s + 1) % segments], ids[r + 1][s]);
     }
 
+    /// <summary>A stretched sphere: radii along x, y and z.</summary>
+    public void Ellipsoid(Vector3 center, Vector3 radii, Color color, int segments = 10, Func<Vector3, Color>? paint = null)
+    {
+        int rings = segments / 2 + 1;
+        var ids = new int[rings + 1][];
+        for (int r = 0; r <= rings; r++)
+        {
+            float v = r / (float)rings * Mathf.Pi;
+            ids[r] = new int[segments];
+            for (int s = 0; s < segments; s++)
+            {
+                float u = s / (float)segments * Mathf.Tau;
+                var n = new Vector3(Mathf.Sin(v) * Mathf.Cos(u), Mathf.Cos(v), Mathf.Sin(v) * Mathf.Sin(u));
+                var normal = new Vector3(n.X / radii.X, n.Y / radii.Y, n.Z / radii.Z).Normalized();
+                var at = center + n * radii;
+                ids[r][s] = Add(at, normal, paint?.Invoke(at) ?? color);
+            }
+        }
+        for (int r = 0; r < rings; r++)
+        for (int s = 0; s < segments; s++)
+            Quad(ids[r][s], ids[r][(s + 1) % segments], ids[r + 1][(s + 1) % segments], ids[r + 1][s]);
+    }
+
+    /// <summary>A cone from a round base to a point (spines, teeth, horns).</summary>
+    public void Cone(Vector3 baseCenter, Vector3 tip, float radius, Color baseColor, Color tipColor, int sides = 5)
+    {
+        Vector3 axis = (tip - baseCenter).Normalized();
+        Vector3 u = axis.Cross(Mathf.Abs(axis.Y) > 0.95f ? Vector3.Right : Vector3.Up).Normalized();
+        Vector3 v = axis.Cross(u).Normalized();
+        int top = Add(tip, axis, tipColor);
+        var ring = new int[sides];
+        for (int k = 0; k < sides; k++)
+        {
+            float a = k / (float)sides * Mathf.Tau;
+            Vector3 outward = u * Mathf.Cos(a) + v * Mathf.Sin(a);
+            ring[k] = Add(baseCenter + outward * radius, (outward + axis * 0.4f).Normalized(), baseColor);
+        }
+        for (int k = 0; k < sides; k++) Tri(ring[k], ring[(k + 1) % sides], top);
+    }
+
+    /// <summary>A flat disc facing along <paramref name="normal"/>.</summary>
+    public void Disc(Vector3 center, Vector3 normal, float radius, Color color, int sides = 18)
+    {
+        Vector3 u = normal.Cross(Mathf.Abs(normal.Y) > 0.95f ? Vector3.Right : Vector3.Up).Normalized();
+        Vector3 v = normal.Cross(u).Normalized();
+        int hub = Add(center, normal, color);
+        var ring = new int[sides];
+        for (int k = 0; k < sides; k++)
+        {
+            float a = k / (float)sides * Mathf.Tau;
+            ring[k] = Add(center + (u * Mathf.Cos(a) + v * Mathf.Sin(a)) * radius, normal, color);
+        }
+        for (int k = 0; k < sides; k++) Tri(hub, ring[k], ring[(k + 1) % sides]);
+    }
+
     public ArrayMesh Build()
     {
         var arrays = new Godot.Collections.Array();

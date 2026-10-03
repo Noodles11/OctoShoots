@@ -9,6 +9,7 @@ using OctoShoots.Core.Run;
 using OctoShoots.Core.Saves;
 using OctoShoots.Core.Sim;
 using OctoShoots.Core.Terrain;
+using OctoShoots.Game.Fx;
 using OctoShoots.Game.Terrain;
 using OctoShoots.Game.Util;
 
@@ -22,7 +23,7 @@ public partial class Main
 {
     enum LevelKind { Reef, Greybox }
 
-    sealed record LoadedLevel(ReefLayout? Layout, Cave Pristine, Cave Playable, MeshData[] Meshes, string Key, long Millis);
+    sealed record LoadedLevel(ReefLayout? Layout, Cave Pristine, Cave Playable, MeshData[] Meshes, List<FloraItem>? Flora, float[]? SunMap, string Key, long Millis);
 
     /// <summary>The grey-box cave stays the same whatever the run seed; seeds drive items, AI and combat rolls.</summary>
     const ulong GreyboxSeed = 20261002;
@@ -68,6 +69,7 @@ public partial class Main
         _loading = Task.Run(() =>
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            List<FloraItem>? flora = null;
             if (pristine is null)
             {
                 if (kind == LevelKind.Greybox)
@@ -79,12 +81,14 @@ public partial class Main
                     layout = ReefGenerator.Generate(new RunStreams(seed), spec, line => GD.Print(line));
                     pristine = layout.Cave;
                 }
+                flora = FloraPlanner.Plan(pristine, layout, kind == LevelKind.Greybox ? GreyboxSeed : seed.Value);
             }
             var playable = pristine.Clone();
             foreach (var c in craters.Where(c => c.Length == 4))
                 playable.Sdf.CarveSphere(new System.Numerics.Vector3(c[0], c[1], c[2]), c[3], playable.ShellCells);
             var meshes = TerrainView.MeshAll(playable.Sdf);
-            return new LoadedLevel(layout, pristine, playable, meshes, key, watch.ElapsedMilliseconds);
+            float[]? sunMap = layout is null ? null : SunLight.Build(playable.Sdf, layout.SurfaceY);
+            return new LoadedLevel(layout, pristine, playable, meshes, flora, sunMap, key, watch.ElapsedMilliseconds);
         });
     }
 
@@ -111,7 +115,7 @@ public partial class Main
         _cave = level.Playable;
         GD.Print($"{LevelName} ready in {level.Millis} ms ({_cave.Sdf.Nx}x{_cave.Sdf.Ny}x{_cave.Sdf.Nz} grid)");
 
-        _world = new World(_cave, _tuning, _seed.Value, _catalog, _save.Profile.Achievements);
+        _world = new World(_cave, _tuning, _seed.Value, _catalog, _save.Profile.Achievements, _creatures);
         if (_pendingRun is { } run)
         {
             _world.Restore(run);
@@ -127,12 +131,17 @@ public partial class Main
         _world.Events.Clear();
 
         _terrain.Show(_cave.Sdf, level.Meshes);
+        if (_layout is not null) _sun.Show(_cave.Sdf, _layout.SurfaceY, level.SunMap);
+        else _sun.ShowCave(_cave.Sdf.Size.Y + 12f);
+        _terrain.SetSeabed(_layout?.Heights, (int)(_layout?.Size.X ?? 0), (int)(_layout?.Size.Z ?? 0), _layout?.SurfaceY ?? _cave.SurfaceY);
         _levelFx.ShowLayout(_layout);
         ShowSeaSurface(_layout);
         _loot.Clear();
         if (_hideAnemones) _anemones.Clear();
         else _anemones.Show(_cave.Anemones);
         _fish.Clear();
+        if (level.Flora is not null) _flora.Show(level.Flora);
+        _creatureViews.Clear();
         _heldKey = "";
         foreach (var v in _enemyViews.Values) v.QueueFree();
         _enemyViews.Clear();
@@ -213,6 +222,39 @@ public partial class Main
             return;
         }
         Notice("Nest is boxed in", "No open water around it");
+    }
+
+    readonly Dictionary<(EnemyKind, bool), int> _denCycle = new();
+
+    /// <summary>Debug: swim to open water near a den of this kind (the next one each time), looking at it.</summary>
+    void TeleportToDen(EnemyKind kind, bool bed = false, int? index = null)
+    {
+        if (_world is null) return;
+        var dens = _cave.Dens.Where(d => d.Kind == kind && d.Bed == bed)
+            .OrderBy(d => System.Numerics.Vector3.DistanceSquared(d.Position, _cave.PlayerSpawn)).ToList();
+        if (dens.Count == 0)
+        {
+            Notice("No dens here", "This level has no " + kind + " dens");
+            return;
+        }
+        int next = index ?? _denCycle.GetValueOrDefault((kind, bed));
+        _denCycle[(kind, bed)] = next + 1;
+        var den = dens[next % dens.Count];
+        var target = den.Position + den.Up * 0.6f;
+        foreach (float distance in new[] { 9f, 7f, 5f, 12f })
+        for (int i = 0; i < 16; i++)
+        {
+            float angle = i * Mathf.Tau / 16f;
+            var at = den.Position + den.Up * 2f + new System.Numerics.Vector3(Mathf.Cos(angle) * distance, 1f, Mathf.Sin(angle) * distance);
+            if (_cave.Sdf.Sample(at) < 1.2f || !_cave.Sdf.LineOfSight(at, target)) continue;
+            _world.Teleport(at);
+            var to = (target - at).G();
+            _yaw = Mathf.Atan2(-to.X, -to.Z);
+            _pitch = Mathf.Atan2(to.Y, new Vector2(to.X, to.Z).Length());
+            Notice(kind.ToString(), "den " + (next % dens.Count + 1) + " of " + dens.Count);
+            return;
+        }
+        Notice("Den is boxed in", "No open water with a view of it");
     }
 
     string WhereAmI()

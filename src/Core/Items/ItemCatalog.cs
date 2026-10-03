@@ -82,8 +82,8 @@ public sealed class ItemCatalog
                 if (!KnownPools.Contains(pool)) problems.Add($"{who} uses unknown pool '{pool}'");
             foreach (var tag in item.Tags)
                 if (!KnownTags.Contains(tag)) problems.Add($"{who} uses unknown tag '{tag}'");
-            if (item.Kind == ItemKind.Active && (item.Active is null || item.Active.Charge < 1))
-                problems.Add($"{who} is active but has no charge");
+            if (item.Kind == ItemKind.Active && (item.Active is null || item.Active.Recharge <= 0f))
+                problems.Add($"{who} is active but has no recharge time");
             if (item.Kind == ItemKind.Passive && item.Active is not null)
                 problems.Add($"{who} is passive but defines an active effect");
             if (item.Pearl is null) problems.Add($"{who} has no pearl look");

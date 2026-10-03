@@ -22,7 +22,28 @@ public partial class TerrainView : Node3D
 
     public override void _Ready()
     {
-        _material = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/greybox_terrain.gdshader") };
+        _material = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/reef_terrain.gdshader") };
+    }
+
+    /// <summary>
+    /// Tells the rock shader where the seabed is (sand settles near it) and where the surface is (caustics fade with depth).
+    /// Without a heightfield (the grey-box cave) any flat floor counts as seabed.
+    /// </summary>
+    public void SetSeabed(float[]? heights, int width, int length, float surfaceY)
+    {
+        if (heights is null)
+        {
+            _material.SetShaderParameter("has_seabed", 0f);
+            _material.SetShaderParameter("surface_y", float.IsFinite(surfaceY) ? surfaceY : 30f);
+            return;
+        }
+        var data = new byte[heights.Length * 4];
+        Buffer.BlockCopy(heights, 0, data, 0, data.Length);
+        var image = Image.CreateFromData(width + 1, length + 1, false, Image.Format.Rf, data);
+        _material.SetShaderParameter("seabed", ImageTexture.CreateFromImage(image));
+        _material.SetShaderParameter("reef_size", new Vector2(width, length));
+        _material.SetShaderParameter("has_seabed", 1f);
+        _material.SetShaderParameter("surface_y", surfaceY);
     }
 
     /// <summary>Meshes every chunk of an SDF. Safe to call from a worker thread (pure Core).</summary>

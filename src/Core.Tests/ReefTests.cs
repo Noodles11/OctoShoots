@@ -160,3 +160,41 @@ public class ReefTests
         Assert.Null(layout.ChamberAt(layout.StartPosition));
     }
 }
+
+/// <summary>Where the Depth 1 creatures live (docs/DEPTH1-BESTIARY.md §4).</summary>
+public class DenTests
+{
+    [Theory]
+    [InlineData("KELP 7Q2Z", 1)]
+    [InlineData("REEF 2345", 2)]
+    public void EveryCreatureHasDensInTheRightPlaces(string seed, int reef)
+    {
+        var layout = ReefTests.Reef(seed, 1, reef);
+        var dens = layout.Cave.Dens;
+        var sdf = layout.Cave.Sdf;
+        foreach (var kind in Sim.CreatureCatalog.Kinds)
+            Assert.Contains(dens, d => d.Kind == kind);
+
+        Assert.All(dens, d =>
+        {
+            Assert.True(sdf.Sample(d.Position + d.Up * 0.8f) > 0.2f, $"{d.Kind} den at {d.Position} is buried");
+            Assert.True(System.Numerics.Vector2.Distance(new System.Numerics.Vector2(d.Position.X, d.Position.Z), new System.Numerics.Vector2(layout.StartPosition.X, layout.StartPosition.Z)) >= 27f, $"{d.Kind} den too close to the start");
+        });
+
+        // The shallow corner: only jellies, urchins and dancers within 60 m of the start.
+        foreach (var d in dens.Where(d => System.Numerics.Vector2.Distance(new System.Numerics.Vector2(d.Position.X, d.Position.Z), new System.Numerics.Vector2(layout.StartPosition.X, layout.StartPosition.Z)) < 60f))
+            Assert.True(d.Kind is Sim.EnemyKind.MoonJelly or Sim.EnemyKind.SeaUrchin or Sim.EnemyKind.SpanishDancer, $"{d.Kind} near the start");
+
+        Assert.All(dens.Where(d => d.Kind == Sim.EnemyKind.Barracuda), d => Assert.InRange(d.Count, 1, 2));
+        Assert.All(dens.Where(d => d.Kind == Sim.EnemyKind.MoonJelly), d => Assert.InRange(d.Count, 6, 9));
+        Assert.All(dens.Where(d => d.Bed), d => Assert.InRange(d.Count, 3, 5));
+    }
+
+    [Fact]
+    public void DensAreDeterministic()
+    {
+        var a = ReefGenerator.Generate(new RunStreams(SeedCode.Parse("KELP 7Q2Z")), new ReefSpec(1, 1)).Cave.Dens;
+        var b = ReefTests.Reef("KELP 7Q2Z", 1, 1).Cave.Dens;
+        Assert.Equal(a.Select(d => (d.Kind, d.Position, d.Count)), b.Select(d => (d.Kind, d.Position, d.Count)));
+    }
+}

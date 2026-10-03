@@ -17,16 +17,28 @@ public sealed partial class World
 
     public int Coins { get; private set; }
     public int Bombs { get; private set; }
-    public int ActiveCharge { get; private set; }
     public int Kills { get; private set; }
 
-    /// <summary>
-    /// The M0 cave has no encounters yet, so every this many kills counts as one cleared encounter
-    /// (charges the active item and fires onEncounterClear effects).
-    /// </summary>
-    public int KillsPerEncounter { get; set; } = 3;
+    /// <summary>Seconds of recharge built up on the held active item; it is ready at <see cref="ActiveMaxCharge"/>.</summary>
+    public float ActiveCharge { get; private set; }
 
-    public int ActiveMaxCharge => Loadout.Active?.Active?.Charge ?? 0;
+    /// <summary>Recharge time of the held active item in seconds (0 when none is held).</summary>
+    public float ActiveMaxCharge => Loadout.Active?.Active?.Recharge ?? 0f;
+
+    public bool ActiveReady => ActiveMaxCharge > 0f && ActiveCharge >= ActiveMaxCharge;
+
+    /// <summary>Active items recharge over time (faster with the recharge stat), not by clearing anything.</summary>
+    void StepActive()
+    {
+        float max = ActiveMaxCharge;
+        if (max <= 0f || ActiveCharge >= max) return;
+        ActiveCharge = MathF.Min(max, ActiveCharge + Dt * Loadout.Stats[Stat.ActiveRecharge]);
+        if (ActiveCharge >= max)
+            Events.Add(new SimEvent(SimEventType.ActiveCharged, Player.Position, Vector3.Zero, -1, 0f, Loadout.Active?.Id));
+    }
+
+    /// <summary>Adds a share (0–1) of the full recharge time, e.g. from a glow jelly.</summary>
+    void RechargeActive(float fraction) => ActiveCharge = MathF.Min(ActiveMaxCharge, ActiveCharge + fraction * ActiveMaxCharge);
 
     /// <summary>Picks up an item: adds it, rebuilds the loadout and runs its onPickup effects.</summary>
     public void GiveItem(string id)
@@ -127,9 +139,6 @@ public sealed partial class World
             case EffectAction.Shards:
                 SpawnShards(at, (int)e.Value);
                 break;
-            case EffectAction.ChargeActive:
-                ActiveCharge = Math.Min(ActiveMaxCharge, ActiveCharge + (int)e.Value);
-                break;
         }
     }
 
@@ -137,18 +146,6 @@ public sealed partial class World
     {
         Kills++;
         Dispatch(Trigger.OnKill, e.Position);
-        if (KillsPerEncounter > 0 && Kills % KillsPerEncounter == 0) ClearEncounter(e.Position);
-    }
-
-    /// <summary>An encounter was cleared: +1 active charge and onEncounterClear effects (2D §19).</summary>
-    public void ClearEncounter(Vector3 at)
-    {
-        int before = ActiveCharge;
-        ActiveCharge = Math.Min(ActiveMaxCharge, ActiveCharge + 1);
-        Dispatch(Trigger.OnEncounterClear, at);
-        Events.Add(new SimEvent(SimEventType.EncounterCleared, at, Vector3.Zero));
-        if (ActiveMaxCharge > 0 && before < ActiveMaxCharge && ActiveCharge == ActiveMaxCharge)
-            Events.Add(new SimEvent(SimEventType.ActiveCharged, Player.Position, Vector3.Zero, -1, 0f, Loadout.Active?.Id));
     }
 
     // ───────────────────────── active items ─────────────────────────
@@ -158,7 +155,7 @@ public sealed partial class World
         var item = Loadout.Active;
         var p = Player;
         if (item?.Active is not { } a) return;
-        if (ActiveCharge < a.Charge)
+        if (ActiveCharge < a.Recharge)
         {
             Events.Add(new SimEvent(SimEventType.ActiveNotReady, p.Position, Vector3.Zero, -1, ActiveCharge, item.Id));
             return;
