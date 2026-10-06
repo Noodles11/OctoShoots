@@ -29,6 +29,8 @@ public sealed class Tuning
 {
     // Movement (§2)
     [Tune("Movement", 1f, 10f)] public float SwimSpeed = 4.5f;
+    /// <summary>Top-down cruise speed (DESIGN-TOPDOWN §4.5). §2.2 also says "4.5 m/s equivalent": an open conflict, see §12.</summary>
+    [Tune("Movement", 1f, 12f)] public float PlaneCruiseSpeed = 6f;
     [Tune("Movement", 0.01f, 0.5f)] public float AccelTime = 0.08f;
     [Tune("Movement", 0.01f, 1f)] public float StopTime = 0.12f;
     [Tune("Movement", 5f, 80f)] public float OverspeedDecel = 30f;

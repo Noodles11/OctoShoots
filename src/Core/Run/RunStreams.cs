@@ -30,6 +30,8 @@ public sealed class RunStreams
     public Rng Nests(int depth, int reef) => _root.Stream($"nests/{depth}/{reef}");
     public Rng Dens(int depth, int reef) => _root.Stream($"dens/{depth}/{reef}");
     public Rng Critters(int depth, int reef) => _root.Stream($"critters/{depth}/{reef}");
+    /// <summary>One stage of the top-down level generator (DESIGN-TOPDOWN §4.1); each attempt gets fresh streams.</summary>
+    public Rng TopDown(int depth, int reef, int attempt, string stage) => _root.Stream($"topdown/{depth}/{reef}/{attempt}/{stage}");
     public Rng Snacks() => _root.Stream("snacks");
     public Rng EnemyAi() => _root.Stream("enemyAI");
     public Rng Combat() => _root.Stream("combat");

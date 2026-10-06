@@ -1,6 +1,6 @@
 # Depth 1 — Sunlit Shallows: creatures and bosses
 
-> The eight creatures are built (see §6); the three bosses are not yet. Numbers are first guesses to be tuned in
+> The eight creatures are built (see §6); the three bosses are not yet built here; Queen Clam is built for the top-down game (DESIGN-TOPDOWN §12.2). Numbers are first guesses to be tuned in
 > play: every creature's numbers are in `data/creatures.json` and in the F1 panel. Builds on
 > [`DESIGN-3D.md`](DESIGN-3D.md) (fairness §7.2, open sea §6) and the 2D roster ([`DESIGN-2D.md`](DESIGN-2D.md) §12.1, §12.2, §31).
 
