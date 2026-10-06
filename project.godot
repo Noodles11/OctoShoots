@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Ink Deep"
 config/description="Ink Deep: a top-down action roguelite in a darkening ocean."
-run/main_scene="res://src/Game/TopDown/TopDownMain.tscn"
+run/main_scene="res://src/Game/Title/TitleMain.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 
 [display]

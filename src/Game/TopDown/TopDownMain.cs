@@ -10,13 +10,16 @@ using OctoShoots.Core.Gen.TopDown;
 using OctoShoots.Core.Items;
 using OctoShoots.Core.Plane;
 using OctoShoots.Core.Run;
+using OctoShoots.Core.Saves;
 using OctoShoots.Game.Fx;
 using OctoShoots.Game.Settings;
+using OctoShoots.Game.Title;
 
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it.
+/// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it. Opened from the
+/// title screen (RunLaunch); run directly with verification flags, it starts a run on its own and saves nothing.
 /// WASD swims (north is up), Space dashes (InputSetup), the mouse aims, F3 toggles the debug map, R regenerates from the
 /// seed field.
 /// Verification flags: --seed=, --depth=, --room=, --at=start|arch|cave|rift|gate|shop|cache|treasure|ambush|mob|boss,
@@ -85,6 +88,14 @@ public partial class TopDownMain : Node3D
     bool _fireBlocked;
     bool Paused => _pause.Visible;
 
+    /// <summary>Opened from the title: the run is recorded in the profile and saved at the start of every room.</summary>
+    bool _persist;
+    /// <summary>A seed she chose (or a verification seed): such runs never earn achievements.</summary>
+    bool _customSeed;
+    /// <summary>A saved run to put her back into, at the start of its room.</summary>
+    SuspendedRun? _resume;
+    PlaneProfileRecorder _recorder = null!;
+
     // Verification mode.
     string? _startAt;
     bool _autopilot;
@@ -97,11 +108,13 @@ public partial class TopDownMain : Node3D
     public override void _Ready()
     {
         ParseArgs();
+        TakeLaunch();
         InputSetup.Register();
         _tuning = SettingsStore.LoadTuning();
         _catalog = LoadCatalog();
         // Keep the GPU cool: the frame-rate cap from the view options (60 by default; captures run uncapped).
-        Engine.MaxFps = _captureDir is null ? SettingsStore.LoadView().MaxFps : 0;
+        var view = SettingsStore.LoadView();
+        Engine.MaxFps = _captureDir is null ? view.MaxFps : 0;
         BuildEnvironment();
         _level = new LevelView();
         AddChild(_level);
@@ -113,12 +126,16 @@ public partial class TopDownMain : Node3D
         AddChild(_boss);
         _camera = new CameraRig();
         AddChild(_camera);
+        _camera.ShakeEnabled = view.CameraShake;
         var sun = new SunLight();
         AddChild(sun);
+        sun.SetStrength(view.SunLight);
         if (OS.GetCmdlineUserArgs().Contains("--dbg-noshadow"))
             foreach (var l in sun.FindChildren("*", "DirectionalLight3D", true, false)) ((DirectionalLight3D)l).ShadowEnabled = false;
         BuildUi();
-        Regenerate();
+        // From the title: the first room is shaped off the main thread behind the splash.
+        if (_persist) StartFirstRoom();
+        else Regenerate();
         if (_startPaused) CallDeferred(MethodName.TogglePause);
     }
 
@@ -144,7 +161,76 @@ public partial class TopDownMain : Node3D
         }
     }
 
-    void BuildEnvironment()
+    /// <summary>What the title screen asked for: a new run, a seeded run, or the saved one.</summary>
+    void TakeLaunch()
+    {
+        if (RunLaunch.Pending is not { } mode)
+        {
+            _customSeed = OS.GetCmdlineUserArgs().Any(a => a.StartsWith("--seed="));
+            _recorder = new PlaneProfileRecorder(new Profile());
+            return;
+        }
+        RunLaunch.Pending = null;
+        _persist = true;
+        _recorder = new PlaneProfileRecorder(GameSave.Current.Profile);
+        if (mode == LaunchMode.Continue && GameSave.Current.Run is { } saved && SeedCode.TryParse(saved.Seed, out var seed))
+        {
+            _seed = seed;
+            _customSeed = saved.CustomSeed;
+            _depth = saved.Depth;
+            _room = saved.Room;
+            _resume = saved;
+            return;
+        }
+        _seed = RunLaunch.Seed;
+        _customSeed = mode == LaunchMode.Seeded;
+    }
+
+    /// <summary>Saves the run as it stands at the start of this room (continuing puts her back here).</summary>
+    void SaveRun()
+    {
+        if (!_persist || _run is null) return;
+        GameSave.Current.Run = new SuspendedRun
+        {
+            Seed = _seed.ToString(),
+            CustomSeed = _customSeed,
+            Depth = _depth,
+            Room = _room,
+            Items = _run.Items.ToList(),
+            Hp = _run.Hp,
+            Shells = _run.Shells,
+            Elapsed = _elapsed,
+            Foes = _runMobs,
+            ShellsCollected = _runShells,
+            SavedAt = DateTime.Now.ToString("s", CultureInfo.InvariantCulture),
+        };
+        GameSave.Write();
+    }
+
+    Task<LevelMap>? _firstMap;
+
+    void StartFirstRoom()
+    {
+        var stats = new List<(string, string)> { ("Seed", _seed.ToString() + (_customSeed ? "  (seeded)" : "")) };
+        if (_resume is { } saved) stats.Add(("Carrying", $"{saved.Items.Count} pearls · {saved.Shells} shells · {Mathf.CeilToInt(saved.Hp)} HP"));
+        _splash.Fill(_resume is not null ? "Back into the sea" : "A new dive", stats, $"Depth {_depth} · Room {_room}");
+        _splash.Modulate = Colors.White;
+        _splash.Visible = true;
+        var streams = new RunStreams(_seed);
+        int depth = _depth, room = _room;
+        _firstMap = Task.Run(() => TopDownGenerator.Generate(streams, depth, room));
+    }
+
+    void GoToTitle()
+    {
+        if (_persist) GameSave.Write();
+        GetTree().ChangeSceneToFile(RunLaunch.TitleScene);
+    }
+
+    void BuildEnvironment() => AddChild(MakeEnvironment());
+
+    /// <summary>The water: shared with the title screen's backdrop.</summary>
+    public static WorldEnvironment MakeEnvironment()
     {
         // Depth 1 in Below's manner: dim, cool water with light in pools (Clementine's glow, beacons); the depth focus
         // pass (topdown_post.gdshader) blurs, fogs and vignettes on top.
@@ -170,7 +256,7 @@ public partial class TopDownMain : Node3D
             SsaoIntensity = 2.5f,
         };
         if (OS.GetCmdlineUserArgs().Contains("--dbg-nossao")) env.SsaoEnabled = false;
-        AddChild(new WorldEnvironment { Environment = env });
+        return new WorldEnvironment { Environment = env };
     }
 
     void BuildUi()
@@ -198,13 +284,17 @@ public partial class TopDownMain : Node3D
         pauseLayer.AddChild(_splash);
         _pause.RestartPressed += () =>
         {
-            // A new run is a new reef: a fresh random seed.
+            // A new run is a new reef: a fresh random seed. The one she leaves counts as abandoned.
             Resume();
+            _recorder.RunAbandoned(_elapsed);
             _seed = SeedCode.NewRandom();
+            _customSeed = false;
             _room = 1;
             Regenerate();
             Say("New run");
         };
+        // The run was saved at the start of this room: she resumes there.
+        _pause.QuitPressed += GoToTitle;
 
         // The debug panel (seed field, numbers, controls): hidden unless F3 is on.
         var panel = _debugPanel = new PanelContainer { Position = new Vector2(12f, 12f), Visible = OS.GetCmdlineUserArgs().Contains("--f3") };
@@ -278,9 +368,25 @@ public partial class TopDownMain : Node3D
                 if (_catalog?.Contains(id) == true) _run.Add(id);
             if (_startHp is { } hp) _run.Hp = hp;
             _startHp = null;
+            bool continuing = _resume is not null;
+            if (_resume is { } saved)
+            {
+                // Back where the save left her: what she carried into this room, and the run's totals so far.
+                foreach (string id in saved.Items)
+                    if (_catalog?.Contains(id) == true) _run.Add(id);
+                _run.Hp = Mathf.Min(saved.Hp, _run.MaxHp);
+                _run.Shells = saved.Shells;
+                _elapsed = _runTime = (float)saved.Elapsed;
+                _runMobs = saved.Foes;
+                _runShells = saved.ShellsCollected;
+                _resume = null;
+            }
+            _recorder.StartRun(_seed.ToString(), _customSeed, _run.Items, continuing);
         }
         _run.Room = _room;
         _world = new PlaneWorld(_map, _tuning, _run);
+        _recorder.EnterRoom(_world, _depth, _room);
+        SaveRun();
         _level.Show(_map);
         _combat.Show(_world, _catalog);
         _boss.Show(_world);
@@ -339,7 +445,21 @@ public partial class TopDownMain : Node3D
 
     public override void _Process(double delta)
     {
-        if (_world is null) return;
+        if (_world is null)
+        {
+            if (_firstMap is { IsCompleted: true } first)
+            {
+                _firstMap = null;
+                if (first.IsFaulted) GD.PushError(first.Exception?.ToString());
+                else
+                {
+                    ApplyLevel(first.Result, keepRun: false, 0);
+                    _transition = Transition.FadingOut;
+                    _transitionTime = 0f;
+                }
+            }
+            return;
+        }
         float dt = (float)delta;
         if (_transition != Transition.None)
         {
@@ -366,6 +486,7 @@ public partial class TopDownMain : Node3D
         while (_accumulator >= PlaneWorld.Dt && steps < 8 && !gateway)
         {
             _world.Step(ReadInput());
+            _recorder.Observe(_world);
             _roomTime += PlaneWorld.Dt;
             _elapsed += PlaneWorld.Dt;
             _accumulator -= PlaneWorld.Dt;
@@ -435,7 +556,7 @@ public partial class TopDownMain : Node3D
         int left = _world.Mobs.Count(m => m.Alive);
         _info.Text = $"Room {_room} · mobs {left}/{_world.Mobs.Count} · pearls {_run!.Items.Count}   attempt {_map.Attempt + 1}   pos {p.Position.X:0.0}, {p.Position.Y:0.0}   " +
                      $"{Engine.GetFramesPerSecond():0} FPS" + (_statusTimer > 0f ? $"   {_status}" : "") +
-                     "\nWASD swim · Shift dash · hold the mouse or arrows to shoot · Tab map · Esc pause · F3 debug · R regenerate · the rift's gateway leads on";
+                     "\nWASD swim · Space dash · hold the mouse or arrows to shoot · Tab map · Esc pause · F3 debug · R regenerate · the rift's gateway leads on";
         Capture();
     }
 
@@ -455,6 +576,7 @@ public partial class TopDownMain : Node3D
             ("Damage taken", $"{st.DamageTaken:0}"),
             ("Carrying", $"{_run!.Items.Count} pearls · {_run.Shells} shells · {Mathf.CeilToInt(_world.Player.Hp)} / {Mathf.RoundToInt(_run.MaxHp)} HP"),
         };
+        _recorder.RoomCleared(_world, _roomTime);
         AddToRun();
         _room++;
         _deathSplash = false;
@@ -482,6 +604,13 @@ public partial class TopDownMain : Node3D
     {
         _accumulator = 0;
         AddToRun();
+        _recorder.RunDied(_world, _runTime);
+        // The run is over: nothing to continue.
+        if (_persist)
+        {
+            GameSave.Current.Run = null;
+            GameSave.Write();
+        }
         var time = TimeSpan.FromSeconds(_runTime);
         var stats = new List<(string, string)>
         {
@@ -537,7 +666,7 @@ public partial class TopDownMain : Node3D
                 if (_deathSplash)
                 {
                     // Dead: read the page, then start over.
-                    _splash.Prompt("Press Enter or click to start a new run");
+                    _splash.Prompt(_persist ? "Enter or click: a new run  ·  Esc: back to the title" : "Press Enter or click to start a new run");
                     _confirmLatched = true;
                     _transition = Transition.Waiting;
                     _transitionTime = 0f;
@@ -567,6 +696,11 @@ public partial class TopDownMain : Node3D
                 _transitionTime = 0f;
                 break;
             case Transition.Waiting:
+                if (_deathSplash && _persist && Input.IsPhysicalKeyPressed(Key.Escape))
+                {
+                    GoToTitle();
+                    return;
+                }
                 if (!Confirmed()) return;
                 // The click that closes the splash must not fire a shot.
                 _fireBlocked = true;
@@ -574,6 +708,7 @@ public partial class TopDownMain : Node3D
                 {
                     // A clean new game: new seed, room 1, no pearls or shells.
                     _seed = SeedCode.NewRandom();
+                    _customSeed = false;
                     _room = 1;
                     ResetRunTotals();
                     _splash.Working("Shaping a new reef");

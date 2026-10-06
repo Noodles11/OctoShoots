@@ -13,7 +13,8 @@ whose rules it inherits.
 - **Presentation.** The Godot layer: heightfield chunks, the tilted camera with depth focus, HUD and run clock,
   minimap with fog of war, pause menu, splashes, and the F3 debug map.
 
-**WASD** swims (north is up), **Space** dashes, the mouse (or arrow keys) aims and fires, **Esc** pauses, **Tab**
+The game boots into the **title screen**: continue, a new run, a seeded run, the Sea-pedia, statistics, save & load and
+settings. **WASD** swims (north is up), **Space** dashes, the mouse (or arrow keys) aims and fires, **Esc** pauses, **Tab**
 shows the whole level, **F3** the debug map, **R** regenerates from the seed field (Enter applies a typed seed).
 
 ## Running
@@ -29,6 +30,11 @@ Arguments after `--`:
 - Where to start: `--at=start|arch|cave|rift|gate|shop|cache|treasure|ambush|mob|boss`.
 - Automation: `--autopilot` (swims the shortest route to the rift), `--fire`, `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
+- Any of these flags skip the title and start a run that is neither recorded nor saved.
+- The title's own review flags:
+  - `--title-sample` uses an example profile that is never saved.
+  - `--title-card=stats|pedia|creatures|save|settings|seed` opens that card.
+  - `--title-launch=new|continue` starts a run after a moment.
 
 ## Layout
 
@@ -46,7 +52,8 @@ src/Core/         pure C# (no Godot types)
   Run/              seed codes and per-system RNG streams
   Saves/            versioned save format, migrations, export codes
 src/Core.Tests/   xUnit tests for Core
-src/Game/TopDown/ entry scene: level, combat and boss views, camera rig, HUD, minimap, menus, splashes
+src/Game/Title/    title screen (the main scene): live-sea backdrop, menu, seed box, Sea-pedia, statistics, save & load, settings
+src/Game/TopDown/ the game scene: level, combat and boss views, camera rig, HUD, minimap, menus, splashes
 src/Game/Fx/      reusable art: flora, creature, clam and reef meshes, pearl materials, particles, sounds, sun light
 src/Game/         controls (InputSetup), settings and save store, conversions
 assets/shaders/   ground, post, bubble, pearl, boss, map and art shaders

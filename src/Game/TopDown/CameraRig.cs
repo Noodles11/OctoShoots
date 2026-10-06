@@ -23,7 +23,13 @@ public partial class CameraRig : Node3D
     float _shake, _shakeTime;
 
     /// <summary>A jolt (a boss landing, a slam): the view shakes, easing out over about half a second.</summary>
-    public void Shake(float amount) => _shake = Mathf.Max(_shake, amount);
+    public void Shake(float amount)
+    {
+        if (ShakeEnabled) _shake = Mathf.Max(_shake, amount);
+    }
+
+    /// <summary>The camera-shake setting.</summary>
+    public bool ShakeEnabled { get; set; } = true;
 
     public override void _Ready()
     {

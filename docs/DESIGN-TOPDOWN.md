@@ -686,12 +686,50 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   splash waits for Enter or a click (not before), then fades out over the new room.
 - **Death:** at 0 HP the run is over. The world stops, and a splash of the same kind fades in with how far the run
   got (depth and room reached, rooms cleared, time, foes defeated, shells collected, pearls absorbed, seed). Enter
-  or a click starts a clean new run: a new random seed, room 1, no pearls or shells, full HP.
-- **Pause (Esc):** the sea stands still under a dimmed screen; the menu resumes, restarts the run (a new random
-  seed, room 1, no pearls, full HP), and lists every absorbed pearl, newest first, with its name, tagline and effects.
+  or a click starts a clean new run: a new random seed, room 1, no pearls or shells, full HP. Esc goes back to the
+  title screen.
+- **Pause (Esc):** the sea stands still under a dimmed screen. The menu:
+  - resumes;
+  - restarts the run (a new random seed, room 1, no pearls, full HP; the run left behind counts as abandoned);
+  - **saves and quits to the title** (she resumes at the start of the room);
+  - lists every absorbed pearl, newest first, with its name, tagline and effects.
 - **Rooms:** a gateway at the rift's centre leads to the next room, a fresh level of the same seed (room N is
-  generated as level N). She keeps her pearls and her HP through it; a new seed starts a fresh run. Every game,
-  and every restarted run, starts on a new random seed. The gateway is shut until the room's boss is freed.
+  generated as level N). She keeps her pearls and her HP through it; a new seed starts a fresh run. A new run starts
+  on a random seed unless she types one on the title screen. The gateway is shut until the room's boss is freed.
+- **Title screen** (docs/TITLE-MENU-PROPOSAL.md has the full layout and motion):
+  - **The backdrop.** The game boots into a menu over the live sea. Clementine swims slowly back and forth along a
+    canyon of a fixed seed (KELP 7Q2Z), in the right third of the screen.
+  - **The menu:** Continue (only with a saved run), New run, Seeded run, Sea-pedia, Statistics, Save & load,
+    Settings, Quit. Each item has a detail line.
+  - **Seeded run** opens a seed box under the item. Typing is forgiving and paste works; there is a random dice and
+    the last five seeds as chips. Seeded runs never earn achievements.
+  - **Sea-pedia:**
+    - **Pearls:** each ported pearl is absorbed, seen (offered but never taken) or unknown. Its record: times
+      absorbed, runs it was in, runs lost holding it, rooms cleared with it.
+    - **Creatures:** the Pellet Dot and Queen Clam. Each record: defeated (bosses: freed), defeated you,
+      encounters, and best time for bosses.
+  - **Statistics:**
+    - four headline numbers (runs, best reach, foes defeated, time in the sea);
+    - runs, combat, treasure and feats rows, records marked "best";
+    - a bar per cause of death.
+    - Seeded runs are counted, and also counted on their own.
+  - **Save & load:**
+    - the saved run (continue or abandon);
+    - a backup save code to copy, or to import after a preview;
+    - erasing everything (type ERASE).
+  - **Settings:** frame-rate cap, sunlight, camera shake, reduced motion; the controls, read-only.
+  - **Motion.** Sub-screens are pearl cards that surface from the bottom right and dive away, and starting a run
+    fades into the loading splash.
+  - **The interface** is laid out on a 1600×900 page and scaled to the window.
+- **Saves:**
+  - **One profile and one run** (the save file, version 2, written atomically).
+  - **The run is saved at the start of every room.** Continuing regenerates that room from the seed with what she
+    carried in: pearls, HP, shells, the run clock and totals. Death clears the saved run.
+  - **The profile records:**
+    - the statistics;
+    - each pearl's and creature's record;
+    - what dealt the killing blow (every hit on her names its source).
+  - **Runs started straight from the game scene** with verification flags record and save nothing.
 - **Depth focus** (the look, after Below): the swim level is the focal plane. Everything is judged by its height
   against it — within about 0.6 m below and 1.6 m above stays sharp; below that the world blurs, fogs and darkens
   with depth toward a dim blue-green; above it rock blurs and darkens into foreground silhouettes. Clementine's glow

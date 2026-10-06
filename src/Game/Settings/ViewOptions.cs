@@ -8,6 +8,8 @@ namespace OctoShoots.Game.Settings;
 public sealed class ViewOptions
 {
     [Tune("View")] public bool CameraShake = true;
+    /// <summary>Menus and banners cross-fade instead of moving, popping and splashing.</summary>
+    [Tune("View")] public bool ReducedMotion = false;
     [Tune("View", 0f, 1f)] public float ShakeAmount = 0.5f;
     [Tune("View", 10f, 80f)] public float MinimapRange = 32f;
     /// <summary>Frame-rate cap (0 = uncapped). Keeps the GPU cool; vsync caps it further on slower screens.</summary>
