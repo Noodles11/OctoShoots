@@ -85,7 +85,7 @@ What changes is the protagonist's skin:
   plane (no floor settling — there is no floor contact at her depth band).
 - **Jet start** inherited (DESIGN-2D §20): first stroke from rest is a 1.8×
   burst over 0.38 s; sharp turns (>110°) re-trigger it.
-- **Ink dash** inherited (DESIGN-2D §30): Shift, ~3.4× speed, 0.32 s
+- **Ink dash** inherited (DESIGN-2D §30): Space, ~3.4× speed, 0.32 s
   untouchable, 0.85 s cooldown, leaves a slowing ink cloud. (Yes, a jellyfish
   inks — the Leak changed her. The Sea-pedia entry says so.)
 - Base swim speed 4.5 m/s equivalent, scaled by the `speed` stat.

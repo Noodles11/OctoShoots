@@ -4,6 +4,9 @@ using Godot;
 
 namespace OctoShoots.Game.Fx;
 
+/// <summary>One plant or sessile animal on the reef.</summary>
+public readonly record struct FloraItem(FloraKind Kind, Transform3D Transform, Color Tint);
+
 /// <summary>
 /// Draws the reef's flora: one MultiMesh per species per 32 m tile, each fading out beyond the mist,
 /// so only the nearby reef costs anything. Sway, lattice, grooves and polyps are done in flora.gdshader.

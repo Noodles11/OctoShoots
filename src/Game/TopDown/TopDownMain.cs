@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
+using OctoShoots.Game.Controls;
 using OctoShoots.Core;
 using OctoShoots.Core.Gen.TopDown;
 using OctoShoots.Core.Items;
@@ -16,14 +17,13 @@ namespace OctoShoots.Game.TopDown;
 
 /// <summary>
 /// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it.
-/// WASD swims (north is up), Shift dashes, the mouse aims, F3 toggles the debug map, R regenerates from the seed field.
-/// The first-person build is kept behind <c>--legacy-fp</c>.
-/// Verification flags: --seed=, --depth=, --room=, --at=start|arch|cave|rift, --autopilot, --f3, --capture=dir --frames=a,b.
+/// WASD swims (north is up), Space dashes (InputSetup), the mouse aims, F3 toggles the debug map, R regenerates from the
+/// seed field.
+/// Verification flags: --seed=, --depth=, --room=, --at=start|arch|cave|rift|gate|shop|cache|treasure|ambush|mob|boss,
+/// --autopilot, --fire, --pearls=, --hp=, --boss-hp=, --paused, --map, --f3, --no-focus, --capture=dir --frames=a,b.
 /// </summary>
 public partial class TopDownMain : Node3D
 {
-    public const string LegacyFirstPersonScene = "res://src/Game/Scenes/Main.tscn";
-
     /// <summary>Every game starts on a random seed (--seed= pins one, for verification).</summary>
     SeedCode _seed = SeedCode.NewRandom();
     /// <summary>Rooms follow one another through the rift's gateway: room N is level N of this seed (a fresh layout).</summary>
@@ -96,13 +96,8 @@ public partial class TopDownMain : Node3D
 
     public override void _Ready()
     {
-        if (OS.GetCmdlineUserArgs().Contains("--legacy-fp"))
-        {
-            // The first-person game, kept intact until its systems are ported.
-            CallDeferred(MethodName.OpenLegacy);
-            return;
-        }
         ParseArgs();
+        InputSetup.Register();
         _tuning = SettingsStore.LoadTuning();
         _catalog = LoadCatalog();
         // Keep the GPU cool: the frame-rate cap from the view options (60 by default; captures run uncapped).
@@ -126,8 +121,6 @@ public partial class TopDownMain : Node3D
         Regenerate();
         if (_startPaused) CallDeferred(MethodName.TogglePause);
     }
-
-    void OpenLegacy() => GetTree().ChangeSceneToFile(LegacyFirstPersonScene);
 
     void ParseArgs()
     {
@@ -661,12 +654,13 @@ public partial class TopDownMain : Node3D
         }
         if (_seedField.HasFocus()) return input;
         var move = System.Numerics.Vector2.Zero;
-        if (Input.IsPhysicalKeyPressed(Key.W)) move.Y -= 1f;
-        if (Input.IsPhysicalKeyPressed(Key.S)) move.Y += 1f;
-        if (Input.IsPhysicalKeyPressed(Key.A)) move.X -= 1f;
-        if (Input.IsPhysicalKeyPressed(Key.D)) move.X += 1f;
+        // Movement and dash come from the shared bindings (InputSetup).
+        if (Input.IsActionPressed(InputSetup.Forward)) move.Y -= 1f;
+        if (Input.IsActionPressed(InputSetup.Back)) move.Y += 1f;
+        if (Input.IsActionPressed(InputSetup.Left)) move.X -= 1f;
+        if (Input.IsActionPressed(InputSetup.Right)) move.X += 1f;
         input.Move = move;
-        bool dash = Input.IsPhysicalKeyPressed(Key.Shift);
+        bool dash = Input.IsActionPressed(InputSetup.Dash);
         input.Dash = dash && !_dashLatched;
         _dashLatched = dash;
         if (_autoFire && _world.Boss is { Stage: BossStage.Fight } queen)

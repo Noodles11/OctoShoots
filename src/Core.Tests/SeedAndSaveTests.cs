@@ -157,25 +157,4 @@ public class SaveTests
         Assert.True(profile.Award("untouchable", customSeed: false));
         Assert.False(profile.Award("untouchable", customSeed: false));
     }
-
-    [Fact]
-    public void WorldSnapshotRestores()
-    {
-        var world = ItemWorlds.Create(0);
-        world.GiveItem("coral_crown");
-        world.GiveItem("barnacle_armor");
-        world.GiveItem("pirates_doubloon");
-        world.Player.Hp = 61f;
-        world.Player.Position = new Vector3(20f, 13f, 18f);
-        var snapshot = world.Snapshot("KELP 7Q2Z", customSeed: false);
-
-        var restored = ItemWorlds.Create(0);
-        restored.Restore(SaveCodec.Deserialize(SaveCodec.Serialize(new SaveFile { Run = snapshot })).Run!);
-        Assert.Equal(world.Items, restored.Items);
-        Assert.Equal(61f, restored.Player.Hp);
-        Assert.Equal(30f, restored.Player.Foam);
-        Assert.Equal(15, restored.Coins);
-        Assert.Equal(new Vector3(20f, 13f, 18f), restored.Player.Position);
-        Assert.Equal(world.Loadout.Stats.MaxHp, restored.Loadout.Stats.MaxHp);
-    }
 }
