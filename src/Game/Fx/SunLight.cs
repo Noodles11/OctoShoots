@@ -9,19 +9,36 @@ namespace OctoShoots.Game.Fx;
 /// </summary>
 public partial class SunLight : Node3D
 {
+    DirectionalLight3D _light = null!;
+    Color _color = new(0.7f, 0.93f, 1f);
+    float _energy = 0.45f;
+
+    /// <summary>The sun of this depth: its colour and strength.</summary>
+    public void Configure(Color color, float energy)
+    {
+        _color = color;
+        _energy = energy;
+        if (_light is null) return;
+        _light.LightColor = color;
+        _light.LightEnergy = energy;
+        _light.Visible = energy > 0.01f;
+    }
+
     /// <summary>Direction the light travels: steep, a little slanted, so shafts read as diagonal beams.</summary>
     public static readonly Vector3 Direction = new Vector3(0.42f, -0.86f, 0.28f).Normalized();
 
     public override void _Ready()
     {
-        var light = new DirectionalLight3D
+        var light = _light = new DirectionalLight3D
         {
-            LightColor = new Color(0.7f, 0.93f, 1f),
-            LightEnergy = 0.45f,
+            LightColor = _color,
+            LightEnergy = _energy,
             ShadowEnabled = true,
             ShadowBlur = 2.5f,
+            ShadowBias = 0.06f,
+            ShadowNormalBias = 2.2f,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits,
-            DirectionalShadowMaxDistance = 45f,
+            DirectionalShadowMaxDistance = 90f,
             LightAngularDistance = 2.5f,
         };
         light.Transform = new Transform3D(Basis.LookingAt(Direction, Vector3.Forward), Vector3.Zero);

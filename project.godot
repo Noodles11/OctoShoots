@@ -40,11 +40,11 @@ sun_dir={
 }
 sea_surface_y={
 "type": "float",
-"value": 60.0
+"value": 18.0
 }
 reef_extent={
 "type": "vec2",
-"value": Vector2(224, 224)
+"value": Vector2(150, 150)
 }
 sun_has_shadow={
 "type": "float",
@@ -57,4 +57,76 @@ sun_shadow={
 light_strength={
 "type": "float",
 "value": 1.0
+}
+reef_water_shallow={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_water_deep={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_murk={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_sand={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_rock={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_coral={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_coral2={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_algae={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_sponge={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_butter={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_sun={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+reef_caustics={
+"type": "float",
+"value": 1.0
+}
+reef_rays={
+"type": "float",
+"value": 1.0
+}
+reef_menace={
+"type": "float",
+"value": 0.0
+}
+reef_saturation={
+"type": "float",
+"value": 1.0
+}
+reef_vignette={
+"type": "float",
+"value": 0.4
+}
+reef_fog={
+"type": "float",
+"value": 0.4
+}
+reef_crack={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
 }

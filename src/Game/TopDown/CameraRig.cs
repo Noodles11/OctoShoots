@@ -28,6 +28,9 @@ public partial class CameraRig : Node3D
         if (ShakeEnabled) _shake = Mathf.Max(_shake, amount);
     }
 
+    /// <summary>The reduced-motion setting: no refraction wobble in the water.</summary>
+    public void SetReducedMotion(bool reduced) => _post.SetShaderParameter("wobble", reduced ? 0f : 1f);
+
     /// <summary>The camera-shake setting.</summary>
     public bool ShakeEnabled { get; set; } = true;
 

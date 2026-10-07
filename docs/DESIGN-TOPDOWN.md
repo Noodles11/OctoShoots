@@ -9,6 +9,12 @@
 > This document defines the new game. **Everything not explicitly changed here
 > is inherited** from `DESIGN-3D.md` (current live rules) and, where noted,
 > `DESIGN-2D.md`. Inherited systems are referenced by section, not repeated.
+>
+> **The theme guideline is [`THEME-BIBLE.md`](THEME-BIBLE.md):**
+> - the pillars, the palettes, the corruption and freeing language, the audio identity, the tone of voice;
+> - the theme tests (§12) that every new feature must pass.
+>
+> This document stays authoritative for rules and numbers.
 
 ---
 
@@ -141,8 +147,7 @@ What changes is the protagonist's skin:
   DESIGN-2D §9.4, §28 tags.)
 - **Capacity**: 16 motifs visible on the bell (inherited "8 pairs" spirit);
   pearls beyond 16 apply their effect but show as faint interior glow only.
-- Absorption is permanent for the run (Isaac rule: no un-absorbing). Drop/transfer
-  mechanics: none in v1.
+- Absorption is permanent for the run (Isaac rule: no un-absorbing). Pearls are never dropped or transferred.
 
 ### 2.5 Stats & health
 - Full Isaac-style stat block inherited (DESIGN-2D §4 table) with the 3D doc's
@@ -310,7 +315,8 @@ between the places, before any rock exists:
   portal after bosses.
 - **Landmark light language** inherited: gold (treasure), green (shop),
   red (curse), violet (secret, **no beacon** — found, not advertised),
-  orange (the Crack). In dark depths these lights are the level's signage —
+  orange (the Crack); and white (the start), teal (the item cache), coral (ambushes; warm but not gold, so
+  they never read as treasure). In dark depths these lights are the level's signage —
   Below's campfire principle.
 - **Sealed pockets** (4–6/level) and **buried coins** (8–12/level, scratched
   X marks) inherited (DESIGN-2D §26, DESIGN-3D §6.3) — bomb the floor, loot
@@ -336,7 +342,7 @@ between the places, before any rock exists:
   bleeds down into the Abyss below in the finale, inverted — the artificial
   light above is what reaches *down*.
 - Shadow mobs are cosmetic (no AI, wander paths, `cosmetic` RNG stream) —
-  determinism preserved (inherited §10 rule).
+  determinism preserved (inherited §10 rule). Nothing in the beneath-layer ever reaches up through the floor.
 
 ### 4.4 Flow on a level (the open-floor pacing contract)
 1. Enter over the Crack's light-shaft from above (inherited start-room motif).
@@ -571,11 +577,8 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 ---
 
 ## 12. Open questions
-- Should the beneath-layer ever interact (a Depth-6 boss arm reaching *up*
-  through the floor)? Deferred — cosmetic in v1.
-- Hub format (free-swim tide pool vs menu) — inherited open question.
-- Drop any pearl? (Recommended: no — absorption is commitment, and commitment
-  is the Isaac feeling.)
+- Hub format: the title screen is a menu over the live sea for now; whether a free-swim Tide Pool replaces it
+  later is still open.
 
 ### 12.1 Conflicts found while implementing (unresolved — need a decision)
 1. **Cruise speed:** §2.2 says base swim speed "4.5 m/s equivalent"; §4.5 says cruise **6 m/s**. Built with 6 m/s
@@ -600,14 +603,12 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 6. **Arches on "peaks":** an arch spans 10–20 m and stands on "peak pairs", but peaks are 10–16 m and rise well
    beyond 5–10 m from a corridor's centre line. Built: footings at the first ground ≥ 6 m high (falling back to
    5 m, then 4 m), with steeper ridge walls (k = 0.9, a value the doc leaves open). Most levels get 1–2 arches.
-7. **Landmark colours** cover treasure, shop, curse, secret and the Crack only. The start (white), the item cache
-   (teal) and ambushes (coral) use placeholder colours.
-8. **Trench route** "at deeper depths": the depth it starts at is not given; not built (Depth 1 only so far).
-9. **Secret guards "trap-heavy (mimics)":** no mimic exists below Depth 3 (Treasure Mimic is a boss). Spawn rows
+7. **Trench route** "at deeper depths": the depth it starts at is not given; not built (Depth 1 only so far).
+8. **Secret guards "trap-heavy (mimics)":** no mimic exists below Depth 3 (Treasure Mimic is a boss). Spawn rows
     are marked as traps with urchin and moray placeholders.
-10. **Ambushers "8–12 m off corridor edges":** at that distance the ground is a ridge wall. Clingers fit, but
+9. **Ambushers "8–12 m off corridor edges":** at that distance the ground is a ridge wall. Clingers fit, but
     burrowers are meant to hide in sand.
-11. **CI:** the brief asks to keep the existing GitHub Actions (tests + headless export), but the repository has no
+10. **CI:** the brief asks to keep the existing GitHub Actions (tests + headless export), but the repository has no
     workflow and no export presets.
 
 ### 12.2 Implementation assumptions (where the doc is silent)
@@ -730,10 +731,44 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
     - each pearl's and creature's record;
     - what dealt the killing blow (every hit on her names its source).
   - **Runs started straight from the game scene** with verification flags record and save nothing.
-- **Depth focus** (the look, after Below): the swim level is the focal plane. Everything is judged by its height
-  against it — within about 0.6 m below and 1.6 m above stays sharp; below that the world blurs, fogs and darkens
-  with depth toward a dim blue-green; above it rock blurs and darkens into foreground silhouettes. Clementine's glow
-  scatters as a warm halo in the water around her; a heavy oval vignette and a cool grade sit on top.
-  Clementine, the gateway, pearls, shells and ink are drawn after the pass, always sharp. Places are not marked on
+- **The look of a depth** (THEME-BIBLE §6.2–6.3, §6.9). One look per depth (`ReefLook`) sets every reef shader at once:
+  - its water, sand, rock, coral, algae and sponge colours;
+  - its sun (pale gold, never Clementine's tangerine) and ambient light;
+  - its caustic and god-ray strength, and its saturation, vignette and murk;
+  - its Menace (0 in the Shallows → 1 at the Tank).
+  Depth 1 (Sunlit Shallows) is tuned; the other six carry the bible's palettes, ready to be tuned as they are built.
+- **The reef's skin** (one shader for the ground, arches, cave roofs, boulders and weak rock, worked out in world
+  space, so separate pieces meet seamlessly):
+  - **Seabed:** rippled sand in patchy fields with flat sand between, sinuous crests, shell grit, soft algae drifts,
+    and a shaded apron at the feet of walls.
+  - **Walls:** limestone with strata and dark crevices, crusted with lilac and pink coralline algae, with turf on
+    ledges.
+  - **Tops:** coral gardens of domed heads in colonies (brain, polyp, plate and soft textures).
+  - **Depth:** water steals red as the floor deepens; the rim wall darkens toward the edge of the world.
+  - **Caustics:** on everything facing up, sharp near the surface, fading with depth. They are sunlight, so they
+    fall only where the sun reaches; walls throw real shade across them.
+- **Canopy rock.** Arches are stone bridges springing from the ground, and overhangs are lumpy shelves. Canopy pieces
+  (arches, overhangs, cave roofs) dissolve with an ordered dither while she is underneath, staying opaque, so the
+  depth focus still blurs them.
+- **Life.** The generator's decoration is joined by cosmetic ground cover: seagrass meadows, crowds of small coral
+  and sponges at the feet of walls, lone coral heads and rubble. It is deterministic from the seed and touches no
+  play. Flora is repainted in the depth's palette, and soft things sway.
+- **The Crack** glows orange from inside its fissure, through the murk; warm light spills over the arena floor and
+  bubbles rise from it.
+- **Depth focus** (the look, after Below):
+  - **The focal plane** is the swim level. Within about 0.6 m below and 1.6 m above stays sharp.
+  - **Below** that, the world blurs and sinks into the depth's water: clear turquoise in the Shallows, murk further
+    down.
+  - **Above** it, rock blurs into soft foreground silhouettes tinted by the water. Their edges are softened, so the
+    mesh's steps never show.
+- **The water over everything:**
+  - Everything is seen through water: red fades and turquoise is scattered in with the water column.
+  - God rays rake across the view, marched along each view ray parallel to the sun and drifting with the swell.
+  - Marine snow drifts between the camera and the reef, glittering in the beams.
+  - A faint refraction wobble (off with reduced motion).
+  - Clementine's warm halo.
+  - A grade: the depth's saturation, shadows cooled toward the water's hue.
+  - A vignette tinted by the deep water, heavier as Menace rises.
+- **Drawn after the pass, always sharp:** Clementine, the gateway, pearls, shells and ink. Places are not marked on
   the level itself (no rings or beacons); a shop's price tags show only while she is inside it.
 

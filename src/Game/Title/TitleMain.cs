@@ -38,6 +38,7 @@ public partial class TitleMain : Node3D
     LevelView _level = null!;
     BellView _bell = null!;
     CameraRig _camera = null!;
+    MarineSnow _snow = null!;
     SunLight _sun = null!;
     Task<LevelMap>? _backdrop;
     PlaneWorld? _world;
@@ -91,16 +92,20 @@ public partial class TitleMain : Node3D
         _catalog = LoadCatalog();
         Engine.MaxFps = _captureDir is null ? _view.MaxFps : 0;
 
-        AddChild(TopDownMain.MakeEnvironment());
+        AddChild(TopDownMain.MakeEnvironment(ReefLook.Shallows));
         _sun = new SunLight();
         AddChild(_sun);
+        _sun.Configure(ReefLook.Shallows.Sun, ReefLook.Shallows.SunEnergy);
         _level = new LevelView();
         AddChild(_level);
         _bell = new BellView();
         AddChild(_bell);
         _camera = new CameraRig();
         AddChild(_camera);
+        _snow = new MarineSnow(900, new Vector3(22f, 7f, 17f), 0.11f);
+        AddChild(_snow);
         _sun.SetStrength(_view.SunLight);
+        _camera.SetReducedMotion(_view.ReducedMotion);
 
         var streams = new RunStreams(SeedCode.Parse(BackdropSeed));
         _backdrop = Task.Run(() => TopDownGenerator.Generate(streams, 1, 1));
@@ -210,6 +215,7 @@ public partial class TitleMain : Node3D
             float alpha = (float)(_accumulator / PlaneWorld.Dt);
             _bell.Sync(_world, alpha, dt);
             _camera.Track(Focus(alpha), dt);
+            _snow.Tick(dt, Focus(alpha) + Vector3.Up * 6f, _camera.Camera.GlobalBasis);
             _level.UpdateCanopy(_world.Player.Position, dt);
         }
         Capture();
@@ -544,6 +550,7 @@ public partial class TitleMain : Node3D
         _view = view;
         Engine.MaxFps = _captureDir is null ? view.MaxFps : 0;
         _sun.SetStrength(view.SunLight);
+        _camera.SetReducedMotion(view.ReducedMotion);
     }
 
     public override void _UnhandledInput(InputEvent e)

@@ -126,8 +126,11 @@ public partial class TopDownMain : Node3D
         AddChild(_boss);
         _camera = new CameraRig();
         AddChild(_camera);
+        _snow = new MarineSnow(900, new Vector3(22f, 7f, 17f), 0.11f);
+        AddChild(_snow);
         _camera.ShakeEnabled = view.CameraShake;
-        var sun = new SunLight();
+        _camera.SetReducedMotion(view.ReducedMotion);
+        var sun = _sunLight = new SunLight();
         AddChild(sun);
         sun.SetStrength(view.SunLight);
         if (OS.GetCmdlineUserArgs().Contains("--dbg-noshadow"))
@@ -227,34 +230,49 @@ public partial class TopDownMain : Node3D
         GetTree().ChangeSceneToFile(RunLaunch.TitleScene);
     }
 
-    void BuildEnvironment() => AddChild(MakeEnvironment());
+    WorldEnvironment _environment = null!;
+    MarineSnow _snow = null!;
+    SunLight _sunLight = null!;
+
+    void BuildEnvironment()
+    {
+        _environment = MakeEnvironment(ReefLook.For(_depth));
+        AddChild(_environment);
+    }
+
+    /// <summary>The depth's look on the water, the sun and every reef shader.</summary>
+    void ApplyLook()
+    {
+        var look = ReefLook.For(_depth);
+        look.Apply();
+        look.ApplyTo(_environment.Environment);
+        _sunLight.Configure(look.Sun, look.SunEnergy);
+    }
 
     /// <summary>The water: shared with the title screen's backdrop.</summary>
-    public static WorldEnvironment MakeEnvironment()
+    /// <summary>
+    /// The water a depth is seen through (THEME-BIBLE §6.2): its ambient light and colour from the depth's look; the
+    /// depth focus pass (topdown_post.gdshader) adds the murk, the rays and the grade on top. Shared with the title.
+    /// </summary>
+    public static WorldEnvironment MakeEnvironment(ReefLook look)
     {
-        // Depth 1 in Below's manner: dim, cool water with light in pools (Clementine's glow, beacons); the depth focus
-        // pass (topdown_post.gdshader) blurs, fogs and vignettes on top.
-        var water = new Color(0.03f, 0.11f, 0.13f);
         var env = new Godot.Environment
         {
             BackgroundMode = Godot.Environment.BGMode.Color,
-            BackgroundColor = water,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
-            AmbientLightColor = new Color(0.45f, 0.65f, 0.72f),
-            AmbientLightEnergy = 0.45f,
             TonemapMode = Godot.Environment.ToneMapper.Aces,
-            TonemapExposure = 1.15f,
+            TonemapExposure = 0.88f,
             FogEnabled = true,
-            FogLightColor = water,
-            FogDensity = 0.002f,
             GlowEnabled = true,
-            GlowIntensity = 0.7f,
-            GlowBloom = 0.08f,
-            GlowHdrThreshold = 0.9f,
+            GlowIntensity = 0.6f,
+            GlowBloom = 0.05f,
+            GlowHdrThreshold = 1.0f,
             SsaoEnabled = true,
             SsaoRadius = 2.5f,
-            SsaoIntensity = 2.5f,
+            SsaoIntensity = 2.2f,
         };
+        look.ApplyTo(env);
+        look.Apply();
         if (OS.GetCmdlineUserArgs().Contains("--dbg-nossao")) env.SsaoEnabled = false;
         return new WorldEnvironment { Environment = env };
     }
@@ -360,6 +378,7 @@ public partial class TopDownMain : Node3D
     {
         _map = map;
         _roomTime = 0f;
+        ApplyLook();
         if (!keepRun || _run is null)
         {
             ResetRunTotals();
@@ -529,11 +548,12 @@ public partial class TopDownMain : Node3D
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
         _boss.Sync(_world, dt);
-        _banner.Sync(_world.Boss);
+        if (!OS.GetCmdlineUserArgs().Contains("--dbg-nobanner")) _banner.Sync(_world.Boss);
         if (_world.Boss is { } b) _minimap.SetMud(_world.ArenaCenter, _world.ArenaRadius, b.Cloud);
         _hud.Elapsed = _elapsed;
         _hud.Track(_world, _catalog, dt);
         _camera.Track(Focus(alpha), dt);
+        _snow.Tick(dt, Focus(alpha) + Vector3.Up * 6f, _camera.Camera.GlobalBasis);
         _level.UpdateCanopy(_world.Player.Position, dt);
         var p = _world.Player;
         _debugMap.SetPlayer(_world.Player.Position);

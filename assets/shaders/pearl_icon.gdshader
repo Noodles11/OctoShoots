@@ -41,7 +41,7 @@ void fragment() {
 	col *= 0.55 + 0.6 * lit;
 	col += pow(1.0 - n.z, 3.0) * 0.35;
 	col += pow(clamp(dot(n, normalize(vec3(-0.45, 0.55, 0.7))), 0.0, 1.0), 40.0) * 0.9;
-	if (glint >= 0.0) col += smoothstep(0.08, 0.0, abs(p.x + p.y * 0.4 - (glint * 3.0 - 1.5))) * 0.6;
+	if (glint >= 0.0) col += (1.0 - smoothstep(0.0, 0.08, abs(p.x + p.y * 0.4 - (glint * 3.0 - 1.5)))) * 0.6;
 	if (state == 1) col = mix(col, vec3(dot(col, vec3(0.33))), 0.5) * 0.85;
 	if (state == 2) col = vec3(0.09, 0.12, 0.15) + pow(1.0 - n.z, 3.0) * 0.12;
 	COLOR = vec4(col, edge * (state == 1 ? 0.75 : 1.0));
