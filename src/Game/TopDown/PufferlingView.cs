@@ -12,8 +12,7 @@ namespace OctoShoots.Game.TopDown;
 /// every healthy or freed one (the world's fish) as the baked body (PufferlingMesh) in pufferling.gdshader, swum from the
 /// sim's position, heading and state — the stroke quickening with its speed, a bank into turns, a slow bob, the blow-up.
 /// The corrupted wear a pet-shop price tag clipped to the tail fin. Freed, a fish shudders while the tank colours wash
-/// out, bubbles burst round it and the tag comes off and sinks. When one fires, 18 more needles fly up, down and
-/// diagonally with the 8 that matter (decoration; they hurt nothing).
+/// out, bubbles burst round it and the tag comes off and sinks. (Its needles are shots, drawn by CombatView.)
 /// </summary>
 public partial class PufferlingView : Node3D
 {
@@ -27,13 +26,6 @@ public partial class PufferlingView : Node3D
         public bool HasTag = true;
     }
 
-    sealed class Needle
-    {
-        public MeshInstance3D Node = null!;
-        public Vector3 Dir;
-        public float Age, Life;
-    }
-
     sealed class Falling
     {
         public Node3D Node = null!;
@@ -41,11 +33,10 @@ public partial class PufferlingView : Node3D
     }
 
     readonly Dictionary<object, Fish> _fish = new();
-    readonly List<Needle> _needles = new();
     readonly List<Falling> _falling = new();
     ArrayMesh _mesh = null!;
-    ShaderMaterial _material = null!, _needleMaterial = null!;
-    Mesh _needleMesh = null!, _tagMesh = null!;
+    ShaderMaterial _material = null!;
+    Mesh _tagMesh = null!;
     StandardMaterial3D _tagMaterial = null!, _stringMaterial = null!;
     LevelMap? _map;
     float _time;
@@ -55,8 +46,6 @@ public partial class PufferlingView : Node3D
     {
         _mesh = PufferlingMesh.Build();
         _material = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/pufferling.gdshader") };
-        _needleMaterial = NeedleMaterial();
-        _needleMesh = NeedleMesh();
         // The price tag: a small cream card with a hot-pink edge, bright enough to read at a glance.
         _tagMesh = new BoxMesh { Size = new Vector3(0.15f, 0.1f, 0.012f) };
         _tagMaterial = new StandardMaterial3D
@@ -70,11 +59,11 @@ public partial class PufferlingView : Node3D
         _stringMaterial = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(0.95f, 0.92f, 0.85f) };
     }
 
-    /// <summary>The needles' look, shared with CombatView's real ones.</summary>
+    /// <summary>The needles' look (CombatView draws them).</summary>
     public static ShaderMaterial NeedleMaterial() => new() { Shader = GD.Load<Shader>("res://assets/shaders/needle.gdshader") };
 
-    /// <summary>A needle: a long thin spike along +Y, pointed at the top.</summary>
-    public static Mesh NeedleMesh() => new CylinderMesh { TopRadius = 0f, BottomRadius = 0.04f, Height = 0.6f, RadialSegments = 6, Rings = 1 };
+    /// <summary>A needle: a long spike along +Y, pointed at the top — big enough to read and dodge at play distance.</summary>
+    public static Mesh NeedleMesh() => new CylinderMesh { TopRadius = 0f, BottomRadius = 0.15f, Height = 1.2f, RadialSegments = 8, Rings = 1 };
 
     /// <summary>A card with a punched hole and a hot-pink price band.</summary>
     static ImageTexture TagTexture()
@@ -98,8 +87,6 @@ public partial class PufferlingView : Node3D
     {
         foreach (var f in _fish.Values) f.Root.QueueFree();
         _fish.Clear();
-        foreach (var n in _needles) n.Node.QueueFree();
-        _needles.Clear();
         _map = world.Map;
     }
 
@@ -158,7 +145,6 @@ public partial class PufferlingView : Node3D
             _fish[key].Root.QueueFree();
             _fish.Remove(key);
         }
-        StepNeedles(dt);
         StepFalling(dt);
     }
 
@@ -261,54 +247,6 @@ public partial class PufferlingView : Node3D
                 t.Node.QueueFree();
                 _falling.RemoveAt(i);
             }
-        }
-    }
-
-    /// <summary>
-    /// The decorative half of a burst: rings of 8 tilted 40° up and 40° down, set between the real needles, and one
-    /// straight up and one straight down. They fly as fast as the real ones, fade, and end on the seabed.
-    /// </summary>
-    public void Burst(System.Numerics.Vector2 at, System.Numerics.Vector2 turn, float radius)
-    {
-        float baseAngle = Mathf.Atan2(turn.Y, turn.X);
-        var dirs = new List<Vector3>();
-        foreach (float elev in new[] { 0.7f, -0.7f })
-            for (int k = 0; k < PufferlingTuning.Needles; k++)
-            {
-                float a = baseAngle + (k + 0.5f) * Mathf.Tau / PufferlingTuning.Needles;
-                dirs.Add(new Vector3(Mathf.Cos(a) * Mathf.Cos(elev), Mathf.Sin(elev), Mathf.Sin(a) * Mathf.Cos(elev)));
-            }
-        dirs.Add(Vector3.Up);
-        dirs.Add(Vector3.Down);
-        var centre = Flat(at);
-        foreach (var d in dirs)
-        {
-            var node = new MeshInstance3D { Mesh = _needleMesh, MaterialOverride = _needleMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
-            AddChild(node);
-            node.Position = centre + d * radius;
-            node.Basis = new Basis(new Quaternion(Vector3.Up, d));
-            node.SetInstanceShaderParameter("fade", 1f);
-            node.SetInstanceShaderParameter("decor", 1f);
-            _needles.Add(new Needle { Node = node, Dir = d, Life = PufferlingTuning.NeedleRange / PufferlingTuning.NeedleSpeed });
-        }
-    }
-
-    void StepNeedles(float dt)
-    {
-        for (int i = _needles.Count - 1; i >= 0; i--)
-        {
-            var n = _needles[i];
-            n.Age += dt;
-            var p = n.Node.Position + n.Dir * PufferlingTuning.NeedleSpeed * dt;
-            n.Node.Position = p;
-            float floor = _map is null ? -10f : _map.HeightAt(new System.Numerics.Vector2(p.X, p.Z));
-            if (n.Age >= n.Life || p.Y < floor)
-            {
-                n.Node.QueueFree();
-                _needles.RemoveAt(i);
-                continue;
-            }
-            n.Node.SetInstanceShaderParameter("fade", 1f - n.Age / n.Life);
         }
     }
 }

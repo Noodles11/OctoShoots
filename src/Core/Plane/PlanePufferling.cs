@@ -11,7 +11,7 @@ public static class PufferlingTuning
 {
     /// <summary>Its body for collision and for her bubbles: calm, and blown up into a ball about 2.2 m across.</summary>
     public const float CalmRadius = 0.5f, InflatedRadius = 1.1f;
-    public const float Hp = 30f;
+    public const float Hp = 60f;
 
     public const float WanderSpeed = 1.5f, Accel = 3f;
     /// <summary>It turns at most this fast, easing into and out of its turns.</summary>
@@ -29,7 +29,7 @@ public static class PufferlingTuning
     public const float Telegraph = 0.8f, MinTelegraph = 0.45f;
 
     public const int Needles = 8;
-    public const float NeedleSpeed = 26f, NeedleRange = 14f, NeedleDamage = 8f, NeedleRadius = 0.12f;
+    public const float NeedleSpeed = 20f, NeedleRange = 14f, NeedleDamage = 8f, NeedleRadius = 0.18f;
     /// <summary>Blown up, its spines hurt on touch.</summary>
     public const float SpineDamage = 4f;
 

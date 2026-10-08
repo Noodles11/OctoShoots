@@ -46,7 +46,7 @@ public class PlaneCombatTests
             w.Step(new PlaneInput { Aim = aim.LengthSquared() > 1e-4f ? Vector2.Normalize(aim) : Vector2.UnitX, Fire = true });
             defeated = w.Events.Any(e => e.Type == PlaneEventType.MobDefeated);
         }
-        Assert.True(defeated, "three shots should defeat a mob");
+        Assert.True(defeated, "six shots should defeat a mob");
         Assert.False(mob.Alive);
         // Freed: a healthy pufferling where it was, which swims off.
         var freed = Assert.Single(w.Fish, f => f.Freed);
@@ -91,11 +91,11 @@ public class PlaneCombatTests
         Assert.InRange((firedAt - swellAt) * PlaneWorld.Dt, 0.75f, 0.85f);
         Assert.Equal(1f, mob.Inflate, 3);
         Assert.Equal(0f, mob.Spines);
-        // Eight, evenly round it, much faster than her bubbles.
+        // Eight, evenly round it, a little faster than her bubbles are thrown.
         Assert.Equal(PufferlingTuning.Needles, needles.Count);
         var angles = needles.Select(n => MathF.Atan2(n.Velocity.Y, n.Velocity.X)).OrderBy(a => a).ToList();
         for (int k = 1; k < angles.Count; k++) Assert.Equal(MathF.Tau / 8f, angles[k] - angles[k - 1], 3);
-        Assert.All(needles, n => Assert.True(n.Velocity.Length() > PlaneCombatTuning.ShotSpeed * 1.4f));
+        Assert.All(needles, n => Assert.True(n.Velocity.Length() > PlaneCombatTuning.ShotSpeed));
     }
 
     [Fact]

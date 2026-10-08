@@ -20,7 +20,7 @@ public partial class SeaPediaCard : PanelContainer
         {
             [PlaneProfileRecorder.MobId] = ("Pufferling",
                 "Round, spotty and easily offended. The Leak dyed this one red and clipped a price tag to its tail.",
-                "Notices you within 10 m and drifts closer, facing you. Within 8 m it blows up into a spiny ball (0.8 s), fires eight needles in a ring, turned differently every time (8 each; they pop your bubbles), and stays round for a moment. Then it backs off and shrinks for 3 s: your window. Its raised spines sting on touch (4). 30 HP. Freed, it swims off in its own sand-and-olive colours.",
+                "Notices you within 10 m and drifts closer, facing you. Within 8 m it blows up into a spiny ball (0.8 s), fires eight needles in a ring, turned differently every time (8 each; hot pink, they pop your bubbles), and stays round for a moment. Then it backs off and shrinks for 3 s: your window. Its raised spines sting on touch (4). 60 HP. Freed, it swims off in its own sand-and-olive colours.",
                 false),
             [PlaneProfileRecorder.QueenClamId] = ("Queen Clam",
                 "Sits on the rift. Hates visitors. Loves pearls, as long as they are hers.",

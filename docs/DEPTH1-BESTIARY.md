@@ -44,7 +44,7 @@ HP assumes 3.5 damage per bubble. Damage is per hit; Clementine is then invulner
 |---|---|---|---|---|
 | **Clownfish ninja** (built) | Swimmer | 14 | 8 star | Ambusher hiding in a school |
 | **Spanish Dancer** | Swimmer, slow | 28 | 10 | Tank; teaches dodging rings |
-| **Pufferling** (built, top-down) | Swimmer | 30 | 8 needle, 4 spines | Area denial; strike in its cooldown |
+| **Pufferling** (built, top-down) | Swimmer | 60 | 8 needle, 4 spines | Area denial; strike in its cooldown |
 | **Barracuda** | Swimmer, fast | 18 | 16 | Charger; teaches the ink dash |
 | **Jelly swarm** (moon jellies) | Swimmer, group | 4 each × 6–9 | 6 | Crowd; likes area damage |
 | **Sea Urchin** | Clinger | 28 | 12 | Turret on any surface; teaches reading gaps |
@@ -65,7 +65,7 @@ with dark spots; corrupted ones are starfire red with lime spots and a price tag
 - **Behaviour:** swims about its home spot from place to place, pausing to hover; healthy ones ignore Clementine.
   A corrupted one that sees her within 10 m turns to face her and drifts closer (1.2 m/s).
 - **Attack — Needle ring:** within 8 m it **blows up** into a spiny ball (0.8 s), then fires **8 needles** evenly
-  round itself, the ring turned at random each time (26 m/s, 14 m, 8 damage; a needle pops any bubble it meets and
+  round itself, the ring turned at random each time (big hot-pink spikes, 20 m/s, 14 m, 8 damage; a needle pops any bubble it meets and
   flies on). It stays round for 0.5 s; blown up, its spines sting on touch (4).
 - **Cooldown:** for 3 s it backs away about 3 m, shrinks back and regrows its spines — the window to strike.
 - **Counterplay:** close in during the cooldown; stand where the next ring's gaps may fall, or dash through it.

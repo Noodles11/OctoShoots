@@ -63,7 +63,8 @@ does the drawing and the motion from a few values the view sets each frame.
    it goes. It keeps turning to face her. At Depth 1 the telegraph is 0.8 s (never below 0.45 s; DEPTH1-BESTIARY §1).
 3. **Fires 8 needles.** Evenly spaced around it, every 45°, with the whole ring turned by a **random angle** each
    time, so she cannot learn where the gaps will be. The spines vanish from its skin as they fly. It stays round.
-   - **Needles** fly at **26 m/s** (much faster than her bubbles' 17 m/s throw) for **14 m**, and hurt **8**.
+   - **Needles** are big hot-pink spikes (about 1 m long, lime at the point, glowing), easy to see and to dodge.
+     They fly at **20 m/s** (a little faster than her bubbles' 17 m/s throw) for **14 m**, and hurt **8**.
    - **A needle pops a bubble** it touches, and flies on.
    - Rock stops a needle.
 4. **Stays round for 0.5 s**: the moment it is easiest to hit.
@@ -76,16 +77,13 @@ does the drawing and the motion from a few values the view sets each frame.
   **1.2 m/s**, still facing her, until she is within reach. It never charges: slow enough that she can always back
   away, quick enough that hiding at the edge of its reach does not work for long.
 - **Its spines hurt on touch** while it is blown up: **4** (half a needle), so she cannot just hug it.
-- **Shooting it** at any point hurts it. It has **30 HP**, so three of her plain bubbles free it (the same as the dots
+- **Shooting it** at any point hurts it. It has **60 HP**, so six of her plain bubbles free it (twice the dots
   it replaces).
 
-### 3.3 The needles in three dimensions (decorative)
+### 3.3 Only in the swim plane
 
-The sim knows only the 8 needles in the swim plane. To make the burst read as a real puffer firing in every
-direction, the view adds **18 decorative needles**: a ring of 8 tilted up 40°, a ring of 8 tilted down 40°, and one
-straight up and one straight down. They fly at the same speed, fade out over their flight, and hurt nothing.
-From the tilted camera the upward ones fly toward the lens and the downward ones into the seabed (they end where
-they meet it). The 8 that matter stay brighter and sharper than the decoration.
+The needles fly only in the swim plane: the 8 that matter, and nothing more (no decorative needles up, down or
+diagonally — they cluttered the view and made the real ones hard to read).
 
 ### 3.4 Being freed
 
@@ -113,7 +111,7 @@ When its health runs out (THEME-BIBLE §6.5, the freeing moment):
   - Healthy fish (never targets) and the freed ones swimming off.
   - All deterministic, seeded per level, and tested.
 - **Game:**
-  - `PufferlingView` (mesh baking, per-fish animation state, the price tag, the decorative 3D needles).
+  - `PufferlingView` (mesh baking, per-fish animation state, the price tag, the freeing).
   - `pufferling.gdshader`, and needle visuals.
   - `CombatView` draws pufferling instead of dots.
 - **Docs:** the pufferling goes into DEPTH1-BESTIARY in place of the Pufferling (Q1), and DESIGN-TOPDOWN §12.2's
@@ -126,7 +124,7 @@ When its health runs out (THEME-BIBLE §6.5, the freeing moment):
 | Chases her at 3 m/s, then 4 m/s swollen | Holds its ground; turns to face her; backs off after firing |
 | Swells to 2.4×, chases 1.6 s, then **bursts into 12 spines** | Swells to 2×, fires **8 needles** with a random turn, stays round, then deflates |
 | A hit while swollen bursts it at once | A hit only hurts it |
-| 21 HP, 8 per spine, 8 m/s spines | 30 HP, 8 per needle, 26 m/s needles that pop bubbles |
+| 21 HP, 8 per spine, 8 m/s spines | 60 HP, 8 per needle, 20 m/s needles that pop bubbles |
 | Yellow, in groups of 1–3 | Natural colours (healthy) or starfire red with lime spots (corrupted) |
 
 ## 7. Decisions

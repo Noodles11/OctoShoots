@@ -329,7 +329,6 @@ public partial class CombatView : Node3D
                 _shots[i].Basis = d.LengthSquared() > 1e-6f ? new Basis(new Quaternion(Vector3.Up, d.Normalized())) : Basis.Identity;
                 _shots[i].MaterialOverride = _needle;
                 _shots[i].SetInstanceShaderParameter("fade", 1f);
-                _shots[i].SetInstanceShaderParameter("decor", 0f);
                 continue;
             }
             _shots[i].Basis = Basis.Identity;

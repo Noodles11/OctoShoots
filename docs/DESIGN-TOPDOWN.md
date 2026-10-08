@@ -742,9 +742,9 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   three bubbles make one twice the size and three times the damage. Growth stops at 15 bubbles: a full bubble
   still merges (taking the faster speed and heading and the longer life) but grows no bigger or stronger, and
   shines with a rainbow sheen. A mob flashes for 0.12 s on each hit. **The mobs are corrupted Pufferlings**
-  (docs/PUFFERLING-PROPOSAL.md, DEPTH1-BESTIARY): 30 HP; they wander about a home spot; one that sees her within 10 m
-  turns to face her and drifts closer; within 8 m it blows up (0.8 s), fires 8 needles in a ring turned at random (26
-  m/s, 14 m, 8 damage; a needle pops any of her bubbles it meets and flies on), stays round 0.5 s (its spines sting
+  (docs/PUFFERLING-PROPOSAL.md, DEPTH1-BESTIARY): 60 HP; they wander about a home spot; one that sees her within 10 m
+  turns to face her and drifts closer; within 8 m it blows up (0.8 s), fires 8 needles in a ring turned at random (big
+  hot-pink spikes, 20 m/s, 14 m, 8 damage; a needle pops any of her bubbles it meets and flies on), stays round 0.5 s (its spines sting
   for 4 on touch), then for 3 s backs away, shrinks and regrows its spines; past 16 m (or 2 s out of sight) it lets
   her go. Up to 16 per level (more with Menace, §6.2), 10 m apart and 30 m clear of the start: the spawn table's
   spots first, then canyon water she can reach (seeded order). Freed (THEME-BIBLE §6.5), a pufferling shudders as the

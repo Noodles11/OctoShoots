@@ -633,7 +633,6 @@ public partial class TopDownMain : Node3D
                 else if (e.Type == PlaneEventType.CannotAfford) Say("Not enough shells");
                 else if (e.Type == PlaneEventType.AmbushSprung) Say("Ambush!");
                 else if (e.Type == PlaneEventType.ShotPopped) _combat.Pop(e.Position, e.Size * 1.7f);
-                else if (e.Type == PlaneEventType.NeedlesFired) _puffers.Burst(e.Position, e.Direction, e.Size);
                 else if (e.Type == PlaneEventType.BossLanded) _camera.Shake(0.9f);
                 else if (e.Type == PlaneEventType.BossStagger) _camera.Shake(0.45f);
                 else if (e.Type == PlaneEventType.BossSnap) _camera.Shake(0.35f);
