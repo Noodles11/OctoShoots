@@ -15,6 +15,11 @@ public partial class PauseMenu : Control
     public event Action? ResumePressed;
     public event Action? RestartPressed;
     public event Action? QuitPressed;
+    /// <summary>The camera-zoom slider moved (saved with the view options).</summary>
+    public event Action<float>? ZoomChanged;
+
+    /// <summary>The camera zoom the slider starts at; set before the menu is added.</summary>
+    public float Zoom { get; init; } = 1f;
 
     VBoxContainer _pearls = null!;
     Label _summary = null!;
@@ -67,6 +72,14 @@ public partial class PauseMenu : Control
         var quit = new Button { Text = "Save & quit to title", CustomMinimumSize = new Vector2(190f, 40f), TooltipText = "You'll resume at the start of this room." };
         quit.Pressed += () => QuitPressed?.Invoke();
         buttons.AddChild(quit);
+
+        var zoomRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        zoomRow.AddThemeConstantOverride("separation", 16);
+        var zoomName = new Label { Text = "Camera zoom" };
+        zoomName.AddThemeColorOverride("font_color", new Color(0.75f, 0.85f, 0.88f));
+        zoomRow.AddChild(zoomName);
+        zoomRow.AddChild(OctoShoots.Game.Title.SettingsCard.ZoomSlider(Zoom, v => ZoomChanged?.Invoke(v), new Color(0.75f, 0.85f, 0.88f)));
+        box.AddChild(zoomRow);
 
         box.AddChild(new HSeparator());
         var heading = new Label { Text = "Absorbed pearls" };

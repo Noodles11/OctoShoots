@@ -64,6 +64,8 @@ public partial class TopDownMain : Node3D
     double _accumulator;
     bool _dashLatched, _rLatched, _f3Latched, _escLatched;
     PauseMenu _pause = null!;
+    ViewOptions _view = null!;
+    DamageNumbers _damage = null!;
     PanelContainer _debugPanel = null!;
 
     // The rift: fade to the splash, generate the next room off the main thread, fade back in.
@@ -113,7 +115,7 @@ public partial class TopDownMain : Node3D
         _tuning = SettingsStore.LoadTuning();
         _catalog = LoadCatalog();
         // Keep the GPU cool: the frame-rate cap from the view options (60 by default; captures run uncapped).
-        var view = SettingsStore.LoadView();
+        var view = _view = SettingsStore.LoadView();
         Engine.MaxFps = _captureDir is null ? view.MaxFps : 0;
         BuildEnvironment();
         _level = new LevelView();
@@ -129,6 +131,9 @@ public partial class TopDownMain : Node3D
         _snow = new MarineSnow(900, new Vector3(22f, 7f, 17f), 0.11f);
         AddChild(_snow);
         _camera.ShakeEnabled = view.CameraShake;
+        _camera.Zoom = view.CameraZoom;
+        _damage = new DamageNumbers();
+        AddChild(_damage);
         _camera.SetReducedMotion(view.ReducedMotion);
         var sun = _sunLight = new SunLight();
         AddChild(sun);
@@ -295,9 +300,15 @@ public partial class TopDownMain : Node3D
         // ESC: pause, restart the run, see the pearls she has absorbed. Drawn above the rest of the HUD.
         var pauseLayer = new CanvasLayer { Layer = 5 };
         AddChild(pauseLayer);
-        _pause = new PauseMenu();
+        _pause = new PauseMenu { Zoom = _view.CameraZoom };
         pauseLayer.AddChild(_pause);
         _pause.ResumePressed += Resume;
+        _pause.ZoomChanged += zoom =>
+        {
+            _view.CameraZoom = zoom;
+            _camera.Zoom = zoom;
+            SettingsStore.Save(SettingsStore.LoadTuning(), _view);
+        };
         _splash = new LoadingSplash();
         pauseLayer.AddChild(_splash);
         _pause.RestartPressed += () =>
@@ -408,6 +419,7 @@ public partial class TopDownMain : Node3D
         SaveRun();
         _level.Show(_map);
         _combat.Show(_world, _catalog);
+        _damage.Clear();
         _boss.Show(_world);
         if (_bossHp is { } bossHp && _world.Boss is { } queen) queen.Hp = bossHp;
         _debugMap.SetMap(_map);
@@ -518,6 +530,13 @@ public partial class TopDownMain : Node3D
                 else if (e.Type == PlaneEventType.ShellCollected) _hud.PulseShells();
                 else if (e.Type == PlaneEventType.CannotAfford) Say("Not enough shells");
                 else if (e.Type == PlaneEventType.AmbushSprung) Say("Ambush!");
+                else if (e.Type == PlaneEventType.PlayerHit)
+                {
+                    _damage.Show(e);
+                    // Harder hits jolt more: a mob shot (10) ~0.42, the boss's snap (18) ~0.5.
+                    _camera.Shake(Mathf.Clamp(0.3f + e.Size * 0.011f, 0.3f, 0.55f));
+                }
+                else if (e.Type is PlaneEventType.MobHit or PlaneEventType.MobDefeated or PlaneEventType.BossHit) _damage.Show(e);
                 else if (e.Type == PlaneEventType.ShotPopped) _combat.Pop(e.Position, e.Size * 1.7f);
                 else if (e.Type == PlaneEventType.BossLanded) _camera.Shake(0.9f);
                 else if (e.Type == PlaneEventType.BossStagger) _camera.Shake(0.45f);
@@ -547,6 +566,7 @@ public partial class TopDownMain : Node3D
 
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
+        _damage.Tick(dt);
         _boss.Sync(_world, dt);
         if (!OS.GetCmdlineUserArgs().Contains("--dbg-nobanner")) _banner.Sync(_world.Boss);
         if (_world.Boss is { } b) _minimap.SetMud(_world.ArenaCenter, _world.ArenaRadius, b.Cloud);

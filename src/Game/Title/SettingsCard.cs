@@ -59,12 +59,19 @@ public partial class SettingsCard : PanelContainer
         };
         box.AddChild(Row("Sunlight", "God rays, caustics and dappled light under the water (0 turns them off).", sun));
 
+        var zoom = ZoomSlider(_view.CameraZoom, v =>
+        {
+            _view.CameraZoom = v;
+            Save();
+        });
+        box.AddChild(Row("Camera zoom", "How close the camera follows Clementine. Also in the pause menu.", zoom));
+
         var shake = Toggle(_view.CameraShake, on =>
         {
             _view.CameraShake = on;
             Save();
         });
-        box.AddChild(Row("Camera shake", "The jolt when a boss lands or slams shut.", shake));
+        box.AddChild(Row("Camera shake", "The jolt when a boss lands or slams shut, or Clementine is hurt.", shake));
 
         var reduced = Toggle(_view.ReducedMotion, on =>
         {
@@ -114,6 +121,30 @@ public partial class SettingsCard : PanelContainer
         row.AddChild(control);
         return row;
     }
+
+    /// <summary>The camera-zoom slider with its percentage; shared with the pause menu.</summary>
+    public static Control ZoomSlider(float value, Action<float> changed, Color? text = null)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 12);
+        var slider = new HSlider
+        {
+            MinValue = OctoShoots.Game.TopDown.CameraRig.MinZoom, MaxValue = OctoShoots.Game.TopDown.CameraRig.MaxZoom, Step = 0.05, Value = value,
+            CustomMinimumSize = new Vector2(200f, 24f), SizeFlagsVertical = SizeFlags.ShrinkCenter,
+        };
+        var label = new Label { Text = Percent(value), CustomMinimumSize = new Vector2(52f, 0f) };
+        label.AddThemeColorOverride("font_color", text ?? TitleStyle.Ink);
+        slider.ValueChanged += v =>
+        {
+            label.Text = Percent((float)v);
+            changed((float)v);
+        };
+        row.AddChild(slider);
+        row.AddChild(label);
+        return row;
+    }
+
+    static string Percent(float zoom) => $"{Mathf.RoundToInt(zoom * 100f)}%";
 
     static CheckButton Toggle(bool on, Action<bool> changed)
     {
