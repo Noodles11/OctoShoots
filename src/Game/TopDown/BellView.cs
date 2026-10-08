@@ -52,6 +52,20 @@ public partial class BellView : Node3D
     float _lastJet, _lastDash, _lastHurt;
     Vector2 _lean, _leanVel;
 
+    /// <summary>Bubble Shield: a big iridescent bubble round her (how far it has grown in, and a ripple when it turns a hit).</summary>
+    MeshInstance3D _shield = null!;
+    float _shieldShown, _ripple;
+    /// <summary>
+    /// Her vitals on the bell (DESIGN-TOPDOWN §2.5): health as shown by the gonad rings (eased, so a lost quarter
+    /// gutters out rather than blinking off), and the rim's snuff after the active pearl is used (1 → 0).
+    /// </summary>
+    float _health = 1f, _snuff, _lastCharge = 1f;
+    const float SnuffSeconds = 0.35f;
+
+    /// <summary>Pearl Diver: the pearl swelling in front of her while she charges it.</summary>
+    MeshInstance3D _chargeOrb = null!;
+    StandardMaterial3D _chargeMaterial = null!;
+
     public override void _Ready()
     {
         _body = new Node3D();
@@ -99,6 +113,14 @@ public partial class BellView : Node3D
         // Her glow is the lantern of the scene: a warm pool in the dark water around her.
         _light = new OmniLight3D { LightColor = Glow, LightEnergy = 2.6f, OmniRange = 11f, OmniAttenuation = 1.4f, ShadowEnabled = false, Position = new Vector3(0f, 1.2f, 0f) };
         AddChild(_light);
+        var sphere = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 32, Rings = 16 };
+        var shieldMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader"), RenderPriority = 3 };
+        shieldMaterial.SetShaderParameter("tint", new Color(0.75f, 0.92f, 1f));
+        _shield = new MeshInstance3D { Mesh = sphere, MaterialOverride = shieldMaterial, Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        AddChild(_shield);
+        _chargeMaterial = PearlMaterial();
+        _chargeOrb = new MeshInstance3D { Mesh = sphere, MaterialOverride = _chargeMaterial, Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        AddChild(_chargeOrb);
         _inkMaterial = new StandardMaterial3D
         {
             AlbedoColor = new Color(0.06f, 0.04f, 0.12f, 0.55f),
@@ -111,6 +133,23 @@ public partial class BellView : Node3D
     /// apex-down (0 upright, 1 head-first).</summary>
     public float DiveDepth { get; set; }
     public float DiveTurn { get; set; }
+
+    /// <summary>A pearl's lustre: creamy white, a pink-gold sheen at the rim, glowing a little (Pearl Diver's throws).</summary>
+    public static StandardMaterial3D PearlMaterial() => new()
+    {
+        AlbedoColor = new Color(1f, 0.97f, 0.92f),
+        Roughness = 0.12f,
+        Metallic = 0.35f,
+        RimEnabled = true,
+        Rim = 1f,
+        RimTint = 0.6f,
+        EmissionEnabled = true,
+        Emission = new Color(1f, 0.85f, 0.9f),
+        EmissionEnergyMultiplier = 0.8f,
+    };
+
+    /// <summary>The shield turned a hit away: it wobbles.</summary>
+    public void ShieldRipple() => _ripple = 1f;
 
     /// <summary>A hard stroke now (the dive's first contraction).</summary>
     public void Kick()
@@ -185,9 +224,13 @@ public partial class BellView : Node3D
         _bellMaterial.SetShaderParameter("wave", _phase < 0.55f ? _phase / 0.55f : 1.3f);
         _bellMaterial.SetShaderParameter("hurt", _hurt);
         _bellMaterial.SetShaderParameter("ink", _inkGhost);
+        SyncVitals(world, h);
         _strandMaterial.SetShaderParameter("hurt", _hurt);
         _strandMaterial.SetShaderParameter("ink", _inkGhost);
-        _light.LightEnergy = 2.6f * (0.94f + 0.12f * _pulse);
+        // Lantern Pearl: her glow reaches farther and shines brighter.
+        float glow = world.Run.Loadout.Stats[OctoShoots.Core.Items.Stat.Glow];
+        _light.OmniRange = 11f * glow;
+        _light.LightEnergy = 2.6f * (1f + 0.4f * (glow - 1f)) * (0.94f + 0.12f * _pulse);
         _light.LightColor = Glow.Lerp(new Color(1f, 0.3f, 0.55f), _hurt * 0.5f);
 
         if (speed > 0.3f) _across = new Vector3(-vel.Y, 0f, vel.X) / speed;
@@ -196,6 +239,56 @@ public partial class BellView : Node3D
         var camera = GetViewport().GetCamera3D();
         if (camera != null) DrawStrands(camera.GlobalPosition);
         SyncInk(world);
+        SyncShield(p, h);
+        SyncCharge(p);
+    }
+
+    /// <summary>
+    /// Health into the gonad rings (draining at most 0.8 of her max a second, healing back faster) and the active pearl's
+    /// charge into the rim; when the charge drops from ready, the rim snuffs out.
+    /// </summary>
+    void SyncVitals(PlaneWorld world, float h)
+    {
+        float target = world.Run.MaxHp > 0f ? Mathf.Clamp(world.Player.Hp / world.Run.MaxHp, 0f, 1f) : 0f;
+        _health = Mathf.MoveToward(_health, target, h * (target < _health ? 0.8f : 1.5f));
+        bool holds = world.Run.Active?.Active is not null;
+        float charge = world.Run.ActiveCharge;
+        if (holds && _lastCharge >= 1f && charge < 1f) _snuff = 1f;
+        _lastCharge = holds ? charge : 1f;
+        _snuff = Mathf.MoveToward(_snuff, 0f, h / SnuffSeconds);
+        _bellMaterial.SetShaderParameter("health", _health);
+        _bellMaterial.SetShaderParameter("charge", holds ? charge : -1f);
+        _bellMaterial.SetShaderParameter("snuff", _snuff);
+        _bellMaterial.SetShaderParameter("spin", _spin);
+    }
+
+    /// <summary>Bubble Shield: it swells round her, shimmers, wobbles when it turns a hit, and flickers before it goes.</summary>
+    void SyncShield(PlaneBody p, float h)
+    {
+        _shieldShown = Mathf.MoveToward(_shieldShown, p.ShieldTimer > 0f ? 1f : 0f, h * 7f);
+        _ripple = Mathf.MoveToward(_ripple, 0f, h * 4f);
+        _shield.Visible = _shieldShown > 0.01f;
+        if (!_shield.Visible) return;
+        float flicker = p.ShieldTimer is > 0f and < 0.7f ? 0.55f + 0.45f * Mathf.Sin(_time * 38f) : 1f;
+        float wobble = 0.1f * _ripple * Mathf.Sin(_time * 30f);
+        float r = 1.05f * (0.55f + 0.45f * _shieldShown);
+        _shield.Scale = new Vector3(r * (1f + wobble), r * (1f - wobble), r * (1f + wobble)) * (1f + 0.025f * Mathf.Sin(_time * 4f));
+        _shield.SetInstanceShaderParameter("fade", _shieldShown * flicker);
+        _shield.SetInstanceShaderParameter("rainbow", 0.35f + 0.4f * _ripple);
+    }
+
+    /// <summary>Pearl Diver: the pearl grows in front of her as she charges it, and shimmers once it is full.</summary>
+    void SyncCharge(PlaneBody p)
+    {
+        _chargeOrb.Visible = p.Charge > 0f;
+        if (!_chargeOrb.Visible) return;
+        float k = Mathf.Clamp(p.Charge / PlaneCombatTuning.ChargeSeconds, 0f, 1f);
+        bool full = k >= 1f;
+        float size = PlaneCombatTuning.ShotRadius * (1f + (PlaneCombatTuning.ChargeSize - 1f) * k) * 1.3f * (full ? 1f + 0.07f * Mathf.Sin(_time * 14f) : 1f);
+        var aim = new Vector3(p.Aim.X, 0f, p.Aim.Y);
+        _chargeOrb.Position = aim * (BellRadius + 0.25f + size) + Vector3.Down * 0.1f;
+        _chargeOrb.Scale = Vector3.One * size;
+        _chargeMaterial.EmissionEnergyMultiplier = 0.25f + 0.55f * k * k + (full ? 0.25f * Mathf.Sin(_time * 14f) : 0f);
     }
 
     /// <summary>The contraction over one beat: a quick squeeze, then a slow relax that overshoots into a slight flare.</summary>

@@ -2,6 +2,9 @@
 // gold gonad horseshoes round the stomach, the radial canals and the ring canal, warts of stinging cells, and eight rim
 // organs in the notches of the scalloped margin. A light wave runs base→rim on every contraction. Unshaded: she is
 // her own light and never changes hue with depth.
+// Her vitals live on the bell (DESIGN-TOPDOWN §2.5): the four gonad rings are her health, a quarter each (lit gold,
+// guttering to ember and dark as quarters go, the last one pulsing slowly when it is all she has left); the rim is her
+// active pearl's charge, a light sweeping clockwise from the top of the screen, breathing gold when ready.
 //   UV: x runs apex (0) → margin (1), y is the angle (0..1). UV2: the bell's plan, unit disk.
 // The contraction (`pulse`) is matched on the CPU by BellView.MarginAt, which anchors the tentacles to the margin.
 shader_type spatial;
@@ -12,6 +15,10 @@ uniform float wave = 1.0;       // the light wave's position along the bell, 0 a
 uniform float hurt = 0.0;       // magenta flash, 1 → 0
 uniform float ink = 0.0;        // the ink dash's ghosting, 0..1
 uniform float glow = 1.0;
+uniform float health = 1.0;     // her HP as a share of her max, 0..1 (eased on the CPU)
+uniform float charge = -1.0;    // the active pearl's charge 0..1 (1 ready); below 0, she holds none
+uniform float snuff = 0.0;      // just used: 1 → 0, the gold whipping off the rim counter-clockwise
+uniform float spin = 0.0;       // the bell's slow turn about its axis, undone so the rim's top stays at the screen's top
 uniform vec3 body : source_color = vec3(1.0, 0.549, 0.259);   // tangerine #FF8C42
 uniform vec3 gold : source_color = vec3(1.0, 0.769, 0.420);   // warm gold #FFC46B
 uniform vec3 flash : source_color = vec3(1.0, 0.239, 0.498);  // hurt magenta #FF3D7F
@@ -45,15 +52,32 @@ void fragment() {
 	float u = along;
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
 
-	// The four gonads: gold horseshoes round the stomach, open toward the centre.
-	float gonad = 0.0, gonad_fill = 0.0;
+	// The four gonads: horseshoes round the stomach, open toward the centre — her health, a quarter each. Ring k holds
+	// the quarter from k/4 up; a full one glows warm gold, breathing with her pulse; a draining one gutters from ember
+	// to dark. When only the first is left it pulses slowly: a dying light at the centre of her.
+	float gonad = 0.0, gonad_fill = 0.0, gonad_dark = 0.0;
+	vec3 gonad_col = vec3(0.0);
+	float critical = 1.0 - step(0.25, health);
+	float breath = 0.92 + 0.1 * pulse;
+	float dying = 0.3 + 0.7 * (0.5 + 0.5 * sin(TIME * 2.4));
 	for (int k = 0; k < 4; k++) {
 		float ka = 0.7853982 + float(k) * 1.5707963;
 		vec2 c = vec2(cos(ka), sin(ka)) * 0.33;
 		vec2 d = q - c;
 		float open = 1.0 - smoothstep(0.35, 0.75, dot(normalize(d + 1e-5), -normalize(c)));
-		gonad = max(gonad, line(length(d) - 0.14, 0.05) * open);
-		gonad_fill = max(gonad_fill, 1.0 - smoothstep(0.08, 0.15, length(d)));
+		float shape = line(length(d) - 0.14, 0.05) * open;
+		float fill = 1.0 - smoothstep(0.08, 0.15, length(d));
+		float lit = clamp(health * 4.0 - float(k), 0.0, 1.0);
+		vec3 ember = mix(vec3(0.18, 0.03, 0.02), vec3(0.9, 0.14, 0.04), smoothstep(0.0, 0.55, lit));
+		vec3 c_ring = mix(ember, gold * breath, smoothstep(0.55, 1.0, lit));
+		// Critical: the last ring is a slow dying light, from dark ember up to a bright orange glow and back.
+		if (k == 0) c_ring = mix(c_ring, mix(vec3(0.22, 0.04, 0.02), vec3(1.0, 0.5, 0.15), dying), critical);
+		float w = max(shape, fill * 0.25);
+		if (w > 0.0 && w >= max(gonad, gonad_fill * 0.25)) gonad_col = c_ring;
+		float shown = k == 0 ? max(smoothstep(0.0, 0.3, lit), critical * step(0.001, health)) : smoothstep(0.0, 0.3, lit);
+		gonad = max(gonad, shape * shown);
+		gonad_fill = max(gonad_fill, fill * lit);
+		gonad_dark = max(gonad_dark, shape * (1.0 - smoothstep(0.0, 0.3, lit)));
 	}
 	// The stomach: a soft cross at the centre.
 	float stomach = (1.0 - smoothstep(0.05, 0.16, r)) * 0.8;
@@ -66,6 +90,34 @@ void fragment() {
 	float canal_d = (fract(k16 + 0.5 + wig) - 0.5) * seg * r;
 	float canals = line(canal_d, 0.026) * smoothstep(0.38, 0.5, r) * (1.0 - smoothstep(0.9, 0.95, r));
 	float ring = line(r - 0.9, 0.03);
+
+	// The rim: her active pearl's charge. Measured clockwise from the top of the screen (the bell's turn undone), lit
+	// up to the charge with a bright head; full, it breathes gold; just used, the gold whips back counter-clockwise.
+	float band = smoothstep(0.76, 0.82, r) * (1.0 - smoothstep(0.97, 1.0, r));
+	float sweep = fract((atan(q.x, -q.y) - spin) / 6.2831853 + 1.0);
+	float rim_lit = 0.0, rim_track = 0.0;
+	vec3 rim_col = vec3(0.0);
+	if (charge >= 0.0) {
+		if (charge >= 1.0) {
+			rim_lit = 0.8 + 0.2 * sin(TIME * 1.8);
+			rim_col = gold;
+		} else {
+			// The unlit part is a dim track, so the sweep reads against it.
+			float filled = 1.0 - step(charge, sweep);
+			float head = exp(-pow((sweep - charge) * 40.0, 2.0)) * step(0.001, charge);
+			rim_lit = filled * 0.85 + head;
+			rim_track = 1.0 - filled;
+			rim_col = mix(vec3(1.0, 0.9, 0.72), vec3(1.0, 0.98, 0.9), head);
+		}
+		if (snuff > 0.0) {
+			float tail = 1.0 - step(snuff, sweep);
+			float edge = exp(-pow((sweep - snuff) * 30.0, 2.0));
+			rim_lit = max(rim_lit, tail * 1.2 + edge * 1.5);
+			rim_col = mix(rim_col, gold * 1.6, max(tail, edge));
+		}
+		rim_lit *= band;
+		rim_track *= band;
+	}
 
 	// Warts of stinging cells, scattered over the outer bell.
 	vec2 cell = floor(q * 13.0);
@@ -86,8 +138,10 @@ void fragment() {
 	float swell = exp(-pow((u - wave) / 0.11, 2.0)) * (1.0 - wave * 0.6);
 
 	vec3 col = body * (0.55 + 0.25 * (1.0 - r));
-	col = mix(col, gold, gonad_fill * 0.25 + stomach * 0.5);
-	col = mix(col, mix(gold, vec3(1.0, 0.93, 0.8), 0.35), gonad);
+	col = mix(col, gold, stomach * 0.5);
+	col = mix(col, gonad_col, gonad_fill * 0.3);
+	col = mix(col, vec3(0.22, 0.05, 0.03), gonad_dark * 0.75);
+	col = mix(col, gonad_col, gonad);
 	col = mix(col, gold * 1.05, canals * 0.7 + ring * 0.6);
 	col = mix(col, vec3(1.0, 0.85, 0.7), warts * 0.45);
 	col = mix(col, body * 1.15 + 0.08, margin * 0.5);
@@ -96,12 +150,15 @@ void fragment() {
 	col += gold * swell * 0.55;
 	// The silhouette: a deeper tangerine edge, so she reads against pale sand as well as in the dark.
 	col = mix(col, vec3(0.62, 0.12, 0.02), smoothstep(0.15, 0.7, fres) * 0.7);
+	// The rim gauge sits over the silhouette's edge so it reads from any angle.
+	col = mix(col, vec3(0.3, 0.07, 0.03), rim_track * 0.6);
+	col = mix(col, rim_col, clamp(rim_lit, 0.0, 1.0));
 	// Hurt: the whole bell flushes magenta for a beat.
 	col = mix(col, flash * 1.2, hurt * 0.55);
 	// The ink dash: a dark violet ghost with a bright rim.
 	col = mix(col, vec3(0.16, 0.08, 0.26) + fres * gold * 0.8, ink * 0.55);
 	ALBEDO = col * glow;
 
-	float a = 0.6 + 0.2 * r * r + fres * 0.45 + gonad * 0.35 + canals * 0.2 + ring * 0.2 + margin * 0.15 + rho * 0.5 + warts * 0.15 + swell * 0.2;
+	float a = 0.6 + 0.2 * r * r + fres * 0.45 + gonad * 0.35 + gonad_dark * 0.3 + rim_lit * 0.4 + canals * 0.2 + ring * 0.2 + margin * 0.15 + rho * 0.5 + warts * 0.15 + swell * 0.2;
 	ALPHA = clamp(a * (1.0 - ink * 0.4) + hurt * 0.2, 0.0, 0.96);
 }

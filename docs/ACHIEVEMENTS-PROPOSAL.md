@@ -68,7 +68,7 @@ awarded once per profile; a run on a custom seed never awards one.
 
 ### 4.1 Layout
 
-The card is a ticket with a tear-off stub, at the bottom centre of the screen, clear of the HP bar, the shells and
+The card is a ticket with a tear-off stub, at the bottom centre of the screen, clear of the pearls, the shells and
 the minimap. At 1600×900 it is about 760 × 170 px. Play does not pause behind it.
 
 ```

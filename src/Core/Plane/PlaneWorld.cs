@@ -12,8 +12,10 @@ public struct PlaneInput
     public bool Dash;
     /// <summary>Unit aim direction on the plane (mouse or arrow keys).</summary>
     public Vector2 Aim;
-    /// <summary>Held: shoot along Aim.</summary>
+    /// <summary>Held: shoot along Aim (with Pearl Diver, held charges a pearl and letting go throws it).</summary>
     public bool Fire;
+    /// <summary>Pressed: use the active pearl (F).</summary>
+    public bool UseActive;
     /// <summary>Pressed: dive down the shaft (when she is over it and the way is open).</summary>
     public bool Dive;
 }
@@ -37,6 +39,12 @@ public sealed class PlaneBody
     public float HurtTimer;
     /// <summary>Slowed (Queen Clam's royal pearl) while this counts down.</summary>
     public float SlowTimer;
+    /// <summary>Pearl Diver: how long fire has been held, charging the next pearl (capped at ChargeSeconds).</summary>
+    public float Charge;
+    /// <summary>Fire was held last tick (letting go throws a charged pearl).</summary>
+    public bool WasFiring;
+    /// <summary>Bubble Shield: untouchable inside it while this counts down.</summary>
+    public float ShieldTimer;
 
     public bool IsDashing => DashTimer > 0f;
 }
@@ -51,14 +59,16 @@ public sealed class PlaneInk
 }
 
 public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
+    ChargeFull, InkBlast, ShieldBlocked, ActiveUsed, ActiveNotReady, ActiveDenied,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
 /// <summary>What hurt Clementine (the killing blow names what ended a run).</summary>
 public enum DamageSource { None, PufferNeedle, PufferSpines, BossPearl, RoyalPearl, BossSnap, BossContact }
 
 /// <summary>
-/// Size: a popped bubble's radius; the bubbles in a volley (Shot); the damage dealt or taken (MobHit, MobDefeated,
-/// BossHit, PlayerHit); 0 otherwise. Source: what hurt her (PlayerHit, PlayerDefeated).
+/// Size: a popped bubble's radius; an ink blast's radius (InkBlast); the bubbles in a volley (Shot); the damage dealt
+/// or taken (MobHit, MobDefeated, BossHit, PlayerHit); HP healed (ActiveUsed by Whale Song); 0 otherwise. Source: what
+/// hurt her (PlayerHit, PlayerDefeated).
 /// </summary>
 public readonly record struct PlaneEvent(PlaneEventType Type, Vector2 Position, Vector2 Direction, float Size = 0f, DamageSource Source = DamageSource.None);
 
@@ -66,8 +76,8 @@ public readonly record struct PlaneEvent(PlaneEventType Type, Vector2 Position, 
 /// The plane-locked simulation (DESIGN-TOPDOWN §0, §11): fixed 60 Hz, deterministic, engine-free. Positions are 2D map
 /// coordinates on the fixed swim band; there is no vertical movement, buoyancy, sinking or surface. Collision is a
 /// circle against the level's heightfield: terrain above the swim band blocks, and the body slides along the slope.
-/// Movement, placeholder combat (shots, one shooting mob) and the gateway (PlaneCombat.cs); the real creatures and items
-/// are ported onto it next (DESIGN-TOPDOWN §11.1).
+/// Movement, combat (her bubbles and pearls, the pufferlings, Queen Clam) and the way down (PlaneCombat.cs); the rest of
+/// the creatures and items are ported onto it next (DESIGN-TOPDOWN §11.1).
 /// </summary>
 public sealed partial class PlaneWorld
 {

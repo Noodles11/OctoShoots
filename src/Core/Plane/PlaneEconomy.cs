@@ -11,6 +11,8 @@ public static class PlaneEconomyTuning
 {
     /// <summary>Shells are picked up within this distance of her edge, and drift toward her from a little farther.</summary>
     public const float ShellReach = 0.6f, ShellMagnet = 2.5f, ShellMagnetSpeed = 9f;
+    /// <summary>Remora Sucker: shells drift to her from this far instead.</summary>
+    public const float RemoraMagnet = 7.5f;
     /// <summary>Every mob drops this many shells (inclusive range).</summary>
     public const int MobDropMin = 1, MobDropMax = 2;
     /// <summary>Shell caches at places: the item cache and secret rooms (inclusive ranges).</summary>
@@ -95,7 +97,7 @@ public sealed partial class PlaneWorld
         Vector2 facing = shop.Cave >= 0 ? Map.Caves[shop.Cave].Facing : Vector2.UnitY;
         Vector2 side = new(-facing.Y, facing.X);
         var rng = new Rng(Map.Seed ^ 0x5409UL ^ ((ulong)Map.Level << 28) ^ ((ulong)Map.Depth << 36) ^ ((ulong)Map.Attempt << 50));
-        var offer = PlaneRun.ShotPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
+        var offer = PlaneRun.PortedPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
         var items = new List<ShopStand>();
         for (int i = 0; i < PlaneEconomyTuning.PearlsForSale && offer.Count > 0; i++)
         {
@@ -126,12 +128,13 @@ public sealed partial class PlaneWorld
     void StepEconomy()
     {
         var p = Player;
+        float magnet = Run.Loadout.Flags.Contains("magnet") ? PlaneEconomyTuning.RemoraMagnet : PlaneEconomyTuning.ShellMagnet;
         foreach (var shell in Shells)
         {
             if (shell.Taken) continue;
             Vector2 to = p.Position - shell.Position;
             float d = to.Length();
-            if (d < Radius + PlaneEconomyTuning.ShellMagnet && d > 1e-4f) shell.Velocity = to / d * PlaneEconomyTuning.ShellMagnetSpeed;
+            if (d < Radius + magnet && d > 1e-4f) shell.Velocity = to / d * PlaneEconomyTuning.ShellMagnetSpeed;
             else shell.Velocity *= MathF.Exp(-4f * Dt);
             Vector2 next = shell.Position + shell.Velocity * Dt;
             if (Map.IsOpen(next)) shell.Position = next;
@@ -162,15 +165,7 @@ public sealed partial class PlaneWorld
             Stats.ShellsSpent += stand.Price;
             stand.Sold = true;
             if (stand.Kind == StandKind.Health) p.Hp = MathF.Min(p.Hp + PlaneEconomyTuning.HealthAmount, Run.MaxHp);
-            else
-            {
-                float before = Run.MaxHp;
-                Run.Add(stand.ItemId);
-                p.Hp = MathF.Min(p.Hp + MathF.Max(Run.MaxHp - before, 0f), Run.MaxHp);
-                LastPearl = stand.ItemId;
-                Stats.PearlsFound++;
-                Events.Add(new PlaneEvent(PlaneEventType.PearlCollected, stand.Position, Vector2.Zero));
-            }
+            else Absorb(stand.ItemId, stand.Position);
             Events.Add(new PlaneEvent(PlaneEventType.Purchased, stand.Position, Vector2.Zero));
         }
         if (near < 0) _denied = -1;

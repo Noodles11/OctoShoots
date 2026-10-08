@@ -270,8 +270,8 @@ Sparse warm pads in the Shallows thinning to single-instrument drones by the Tre
 Rule one: diegetic first. The HUD exists only where the body can’t carry the information.
 
 - Ammo is diegetic: bubble orbs orbit beneath the bell — no ammo counter.
-- Status is diegetic: rim organs pulse magenta (hurt) / gold (active ready); absorption is a chromatic ripple.
-- HUD: health bar with drain trail (bottom left), run clock (top centre, stops while paused), active slot with recharge bar, shells counter that brightens and swells on pickup, absorbed pearls as dots above the HP bar, circular minimap top-right.
+- Vitals are diegetic (DESIGN-TOPDOWN §2.5): the four gonad rings at the centre of the bell are her health, a quarter each — lit gold, guttering to ember and dark, the last one pulsing slowly when critical; the bell's rim is her active pearl's charge — a light sweeping clockwise from the top, breathing gold when ready, snuffing out counter-clockwise on use. The magenta hurt flash washes the whole bell for a beat; absorption is a chromatic ripple.
+- HUD: run clock (top centre, stops while paused), shells counter that brightens and swells on pickup, absorbed pearls as dots bottom left, circular minimap top-right. No health bar, no active slot.
 - Minimap: north-up, fog of war revealed in a 15 m radius that persists; unvisited places show “?” once approached, visited ones as dots in their landmark colour; shop $ and treasure trophy appear when fog lifts. Beneath-layer shadows never appear — the map shows your floor only.
 - Tab map: the full chart, crater-accurate, no fog, with legend.
 - Splashes: dark, quiet, typographic. Room-clear splash: time, foes freed, shells collected and spent, pearls found, places visited, damage taken, what she carries. Death splash: how far the run got, and the seed — because a seed is the run’s epitaph and its invitation to a friend.

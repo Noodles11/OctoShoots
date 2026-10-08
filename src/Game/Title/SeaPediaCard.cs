@@ -45,7 +45,7 @@ public partial class SeaPediaCard : PanelContainer
         _close = close;
     }
 
-    public static int PearlsFound(Profile p) => PlaneRun.ShotPearls.Count(id => p.SeenItems.Contains(id));
+    public static int PearlsFound(Profile p) => PlaneRun.PortedPearls.Count(id => p.SeenItems.Contains(id));
     public static int CreaturesMet(Profile p) => Creatures.Keys.Count(id => p.SeenCreatures.Contains(id) || p.SeenBosses.Contains(id));
 
     public override void _Ready()
@@ -72,7 +72,7 @@ public partial class SeaPediaCard : PanelContainer
         var tabs = new HBoxContainer();
         tabs.AddThemeConstantOverride("separation", 10);
         box.AddChild(tabs);
-        _pearlTab = TitleStyle.Pill($"Pearls  {PearlsFound(_profile)} / {PlaneRun.ShotPearls.Length}", size: 16);
+        _pearlTab = TitleStyle.Pill($"Pearls  {PearlsFound(_profile)} / {PlaneRun.PortedPearls.Length}", size: 16);
         _creatureTab = TitleStyle.Pill($"Creatures  {CreaturesMet(_profile)} / {Creatures.Count}", primary: false, size: 16);
         _pearlTab.Pressed += () => ShowTab(true);
         _creatureTab.Pressed += () => ShowTab(false);
@@ -116,7 +116,7 @@ public partial class SeaPediaCard : PanelContainer
         Button? first = null;
         if (pearls)
         {
-            foreach (string id in PlaneRun.ShotPearls)
+            foreach (string id in PlaneRun.PortedPearls)
             {
                 var tile = PearlTile(id);
                 _grid.AddChild(tile);

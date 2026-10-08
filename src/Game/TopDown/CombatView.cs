@@ -35,6 +35,7 @@ public partial class CombatView : Node3D
         _needle = PufferlingView.NeedleMaterial();
         _herShot = Glow(new Color(1f, 0.85f, 0.65f));
         _bubble = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") };
+        _herPearl = BellView.PearlMaterial();
         _theirShot = Glow(new Color(1f, 0.25f, 0.3f));
         _clamPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.96f, 0.9f), Roughness = 0.12f, Metallic = 0.3f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.82f, 0.9f), EmissionEnergyMultiplier = 0.9f };
         _royalPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.85f, 0.45f), Roughness = 0.1f, Metallic = 0.5f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.6f, 0.95f), EmissionEnergyMultiplier = 1.6f };
@@ -285,6 +286,78 @@ public partial class CombatView : Node3D
     readonly List<PopFx> _pops = new();
     readonly SphereMesh _unitSphere = new() { Radius = 1f, Height = 2f, RadialSegments = 20, Rings = 10 };
     ShaderMaterial _bubble = null!;
+    StandardMaterial3D _herPearl = null!;
+
+    const float BlastSeconds = 0.65f;
+
+    sealed class BlastFx
+    {
+        public Node3D Node = null!;
+        public MeshInstance3D Cloud = null!;
+        public MeshInstance3D[] Puffs = null!;
+        public Vector3[] PuffDirs = null!;
+        public StandardMaterial3D Material = null!;
+        public float Radius, Age;
+    }
+
+    readonly List<BlastFx> _blasts = new();
+
+    /// <summary>Ink Sac: a bubble burst into ink here — a dark violet cloud billows out to the blast's reach and thins away.</summary>
+    public void InkBlast(System.Numerics.Vector2 at, float radius)
+    {
+        var node = new Node3D { Position = new Vector3(at.X, LevelMap.SwimBand, at.Y) };
+        AddChild(node);
+        var material = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.16f, 0.06f, 0.26f, 0.7f),
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            EmissionEnabled = true,
+            Emission = new Color(0.45f, 0.15f, 0.75f),
+            EmissionEnergyMultiplier = 0.6f,
+            RimEnabled = true,
+        };
+        var cloud = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        node.AddChild(cloud);
+        var puffs = new MeshInstance3D[8];
+        var dirs = new Vector3[8];
+        for (int i = 0; i < puffs.Length; i++)
+        {
+            float a = i * Mathf.Tau / puffs.Length + 0.3f * Mathf.Sin(i * 2.7f);
+            dirs[i] = new Vector3(Mathf.Cos(a), 0.25f + 0.2f * Mathf.Sin(i * 1.9f), Mathf.Sin(a));
+            puffs[i] = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            node.AddChild(puffs[i]);
+        }
+        _blasts.Add(new BlastFx { Node = node, Cloud = cloud, Puffs = puffs, PuffDirs = dirs, Material = material, Radius = radius });
+    }
+
+    const float SongSeconds = 1.6f;
+    readonly List<(Node3D Node, StandardMaterial3D Material, float Age)> _songs = new();
+
+    /// <summary>An active pearl was used: Whale Song sends three soft rings of sound out from her (the shield is drawn on her).</summary>
+    public void ActiveUsed(PlaneWorld world)
+    {
+        if (world.Run.Active?.Active?.Action != ActiveAction.WhaleSong) return;
+        var at = world.Player.Position;
+        for (int i = 0; i < 3; i++)
+        {
+            var material = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                AlbedoColor = new Color(0.55f, 0.95f, 1f, 0f),
+                EmissionEnabled = true,
+                Emission = new Color(0.4f, 0.85f, 1f),
+                EmissionEnergyMultiplier = 1.5f,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            };
+            var node = new Node3D { Position = new Vector3(at.X, LevelMap.SwimBand, at.Y), Visible = false };
+            node.AddChild(new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = 0.94f, OuterRadius = 1f, Rings = 48, RingSegments = 6 }, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+            AddChild(node);
+            // Staggered: each ring starts a little after the last.
+            _songs.Add((node, material, -0.28f * i));
+        }
+    }
 
     /// <summary>A bubble popped here (on a mob, on rock, or where it stopped).</summary>
     public void Pop(System.Numerics.Vector2 at, float radius)
@@ -332,14 +405,22 @@ public partial class CombatView : Node3D
                 continue;
             }
             _shots[i].Basis = Basis.Identity;
-            if (shot.FromPlayer)
+            if (shot.FromPlayer && shot.Charged > 0.25f)
             {
-                // A bubble, wobbling a little as it flies.
+                // Pearl Diver: a charged throw flies as a lustrous pearl, turning as it goes.
+                _shots[i].Scale = Vector3.One * shot.Radius * 1.3f;
+                _shots[i].Rotation = new Vector3(0f, shot.Age * 6f, 0.3f);
+                _shots[i].MaterialOverride = _herPearl;
+            }
+            else if (shot.FromPlayer)
+            {
+                // A bubble, wobbling a little as it flies (an Ink Sac one dark with ink).
                 float r = shot.Radius * 1.7f;
                 float wob = 0.06f * Mathf.Sin(shot.Age * 18f + i);
                 _shots[i].Scale = new Vector3(r * (1f + wob), r * (1f - wob), r * (1f + wob));
                 _shots[i].MaterialOverride = _bubble;
                 _shots[i].SetInstanceShaderParameter("fade", 1f);
+                _shots[i].SetInstanceShaderParameter("ink", shot.Explosive ? 1f : 0f);
                 _shots[i].SetInstanceShaderParameter("rainbow", shot.Bubbles >= PlaneCombatTuning.BubbleCap ? 1f : 0f);
             }
             else if (shot.BossPearl)
@@ -375,6 +456,50 @@ public partial class CombatView : Node3D
                 pop.Drops[d].Position = pop.DropDirs[d] * pop.Radius * (1f + 3.5f * k);
                 pop.Drops[d].SetInstanceShaderParameter("fade", fade);
             }
+        }
+
+        // Ink blasts: the cloud billows out to its reach and thins; puffs roll outward and up.
+        for (int i = _blasts.Count - 1; i >= 0; i--)
+        {
+            var blast = _blasts[i];
+            blast.Age += dt;
+            float k = blast.Age / BlastSeconds;
+            if (k >= 1f)
+            {
+                blast.Node.QueueFree();
+                _blasts.RemoveAt(i);
+                continue;
+            }
+            float grow = 1f - (1f - k) * (1f - k) * (1f - k);
+            blast.Cloud.Scale = new Vector3(1f, 0.55f, 1f) * blast.Radius * (0.35f + 0.65f * grow);
+            blast.Material.AlbedoColor = new Color(0.16f, 0.06f, 0.26f, 0.7f * (1f - k) * (1f - k));
+            blast.Material.EmissionEnergyMultiplier = 0.9f * (1f - k);
+            for (int d = 0; d < blast.Puffs.Length; d++)
+            {
+                blast.Puffs[d].Position = blast.PuffDirs[d] * blast.Radius * (0.4f + 0.75f * grow);
+                blast.Puffs[d].Scale = Vector3.One * blast.Radius * 0.32f * (1f - 0.5f * k);
+            }
+        }
+
+        // Whale Song: rings of sound swell out and fade.
+        for (int i = _songs.Count - 1; i >= 0; i--)
+        {
+            var (node, material, age) = _songs[i];
+            age += dt;
+            _songs[i] = (node, material, age);
+            float k = age / SongSeconds;
+            if (k >= 1f)
+            {
+                node.QueueFree();
+                _songs.RemoveAt(i);
+                continue;
+            }
+            node.Visible = k > 0f;
+            if (k <= 0f) continue;
+            float ease = 1f - (1f - k) * (1f - k);
+            node.Scale = Vector3.One * (0.6f + 6.5f * ease);
+            material.AlbedoColor = new Color(0.55f, 0.95f, 1f, 0.75f * (1f - k));
+            material.EmissionEnergyMultiplier = 1.5f * (1f - k);
         }
 
         while (_pearls.Count < world.Pearls.Count) AddPearl(world.Pearls[_pearls.Count], _time);

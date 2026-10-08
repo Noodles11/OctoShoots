@@ -7,17 +7,16 @@ using OctoShoots.Core.Plane;
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// The plane HUD, bottom left: Clementine's HP bar (a lagging trail shows the damage just taken) and the pearls she
-/// carries, one dot each in its own colours. A pearl's name and tagline show for a moment when she takes it. Over the
-/// shaft, a prompt: Shift to dive, or why she cannot yet.
+/// The plane HUD, bottom left: the pearls she carries, one dot each in its own colours, and her shells. A pearl's name
+/// and tagline show for a moment when she takes it. Over the shaft, a prompt: Shift to dive, or why she cannot yet.
+/// Her health and her active pearl's charge are not here: they are on her bell (BellView, DESIGN-TOPDOWN §2.5).
 /// </summary>
 public partial class HudView : Control
 {
-    const float BarWidth = 300f, BarHeight = 18f, Margin = 18f;
+    const float Margin = 18f;
 
     PlaneRun? _run;
     ItemCatalog? _catalog;
-    float _hp, _max = 100f, _trail;
     string _caption = "";
     int _shells;
     /// <summary>1 when a shell has just been collected, easing back to 0: the counter brightens and swells.</summary>
@@ -52,10 +51,6 @@ public partial class HudView : Control
         }
         _run = world.Run;
         _catalog = catalog;
-        _hp = world.Player.Hp;
-        _max = world.Run.MaxHp;
-        // The trail eases down to the HP after a short wait; healing snaps it up.
-        _trail = _trail < _hp ? _hp : Mathf.MoveToward(_trail, _hp, dt * 40f);
         _captionTimer -= dt;
         _shells = world.Run.Shells;
         _pulse = Mathf.MoveToward(_pulse, 0f, dt * 2.5f);
@@ -114,17 +109,8 @@ public partial class HudView : Control
     public override void _Draw()
     {
         var font = ThemeDB.FallbackFont;
-        var at = new Vector2(Margin, Size.Y - Margin - BarHeight);
-
-        // HP bar.
-        float k = Mathf.Clamp(_hp / _max, 0f, 1f), trail = Mathf.Clamp(_trail / _max, 0f, 1f);
-        DrawRect(new Rect2(at - Vector2.One * 3f, new Vector2(BarWidth + 6f, BarHeight + 6f)), new Color(0f, 0f, 0f, 0.55f));
-        DrawRect(new Rect2(at, new Vector2(BarWidth, BarHeight)), new Color(0.12f, 0.05f, 0.07f, 0.9f));
-        DrawRect(new Rect2(at, new Vector2(BarWidth * trail, BarHeight)), new Color(1f, 0.85f, 0.7f, 0.85f));
-        var fill = k > 0.3f ? new Color(0.95f, 0.35f, 0.38f) : new Color(1f, 0.2f, 0.2f).Lerp(new Color(1f, 0.6f, 0.6f), 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.012f));
-        DrawRect(new Rect2(at, new Vector2(BarWidth * k, BarHeight)), fill);
-        DrawRect(new Rect2(at, new Vector2(BarWidth, BarHeight * 0.35f)), new Color(1f, 1f, 1f, 0.12f));
-        DrawString(font, at + new Vector2(8f, BarHeight - 4f), $"{Mathf.CeilToInt(_hp)} / {Mathf.RoundToInt(_max)}", HorizontalAlignment.Left, -1, 14, Colors.White);
+        // The bottom-left corner the pearls and shells stack up from.
+        var at = new Vector2(Margin, Size.Y - Margin - 4f);
 
         // The run's clock, top centre.
         var clock = TimeSpan.FromSeconds(Elapsed);
@@ -153,7 +139,7 @@ public partial class HudView : Control
             DrawRect(new Rect2(b + new Vector2(bw * 0.5f - 1f, -2f), new Vector2(2f, bh + 4f)), new Color(0f, 0f, 0f, 0.7f * a));
         }
 
-        // Her pearls, above the bar.
+        // Her pearls, bottom left.
         if (_run is not null && _catalog is not null)
         {
             var dot = at + new Vector2(10f, -18f);

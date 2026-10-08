@@ -230,7 +230,7 @@ public partial class SaveCard : PanelContainer
                 return;
             }
             var s = incoming.Profile.Stats;
-            int pearls = PlaneRun.ShotPearls.Count(id => incoming.Profile.SeenItems.Contains(id));
+            int pearls = PlaneRun.PortedPearls.Count(id => incoming.Profile.SeenItems.Contains(id));
             string run = incoming.Run is { } r ? $"a saved run at {r.Where}" : "no saved run";
             result.AddChild(TitleStyle.Text($"This save has {s.Runs} runs, {pearls} pearls found, {incoming.Profile.Achievements.Count} achievements and {run}.", 15, TitleStyle.Ink, TitleStyle.BodyBold));
             var replace = TitleStyle.Pill("Replace my save", size: 15);

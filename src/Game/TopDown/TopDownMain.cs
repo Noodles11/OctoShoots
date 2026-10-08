@@ -39,7 +39,7 @@ public partial class TopDownMain : Node3D
     BannerView _banner = null!;
     float? _bossHp;
     /// <summary>Verification: fire at the nearest mob; start the run with these pearls.</summary>
-    bool _autoFire, _startPaused;
+    bool _autoFire, _autoActive, _startPaused;
     float? _startHp;
     string[] _startPearls = Array.Empty<string>();
     HudView _hud = null!;
@@ -108,7 +108,7 @@ public partial class TopDownMain : Node3D
     Vector3 _belowOffset;
     /// <summary>The absolute position (xz) of the world's origin: each dive moves the world back by the hole's offset.</summary>
     Vector2 _origin;
-    bool _diving, _diveLatched;
+    bool _diving, _diveLatched, _activeLatched;
     float _diveTime;
     System.Numerics.Vector2 _diveFrom;
     ReefLook _lookFrom = ReefLook.Shallows, _lookTo = ReefLook.Shallows;
@@ -178,6 +178,7 @@ public partial class TopDownMain : Node3D
             else if (arg == "--autopilot") _autopilot = true;
             else if (arg.StartsWith("--boss-hp=") && float.TryParse(Value("--boss-hp="), NumberStyles.Float, CultureInfo.InvariantCulture, out float bhp)) _bossHp = bhp;
             else if (arg == "--fire") _autoFire = true;
+            else if (arg == "--use-active") _autoActive = true;
             else if (arg == "--paused") _startPaused = true;
             else if (arg.StartsWith("--hp=") && float.TryParse(Value("--hp="), NumberStyles.Float, CultureInfo.InvariantCulture, out float hp)) _startHp = hp;
             else if (arg.StartsWith("--pearls=")) _startPearls = Value("--pearls=").Split(',', StringSplitOptions.RemoveEmptyEntries);
@@ -226,6 +227,7 @@ public partial class TopDownMain : Node3D
             Items = _run.Items.ToList(),
             Hp = _run.Hp,
             Shells = _run.Shells,
+            ActiveCharge = _run.ActiveCharge,
             Elapsed = _elapsed,
             Foes = _runMobs,
             ShellsCollected = _runShells,
@@ -450,6 +452,7 @@ public partial class TopDownMain : Node3D
                     if (_catalog?.Contains(id) == true) _run.Add(id);
                 _run.Hp = Mathf.Min(saved.Hp, _run.MaxHp);
                 _run.Shells = saved.Shells;
+                _run.ActiveCharge = saved.ActiveCharge;
                 _elapsed = _runTime = (float)saved.Elapsed;
                 _runMobs = saved.Foes;
                 _runShells = saved.ShellsCollected;
@@ -633,6 +636,14 @@ public partial class TopDownMain : Node3D
                 else if (e.Type == PlaneEventType.CannotAfford) Say("Not enough shells");
                 else if (e.Type == PlaneEventType.AmbushSprung) Say("Ambush!");
                 else if (e.Type == PlaneEventType.ShotPopped) _combat.Pop(e.Position, e.Size * 1.7f);
+                else if (e.Type == PlaneEventType.InkBlast)
+                {
+                    _combat.InkBlast(e.Position, e.Size);
+                    _camera.Shake(0.12f);
+                }
+                else if (e.Type == PlaneEventType.ActiveUsed) _combat.ActiveUsed(_world);
+                else if (e.Type == PlaneEventType.ShieldBlocked) _bell.ShieldRipple();
+                else if (e.Type == PlaneEventType.ActiveDenied) Say("Already at full health");
                 else if (e.Type == PlaneEventType.BossLanded) _camera.Shake(0.9f);
                 else if (e.Type == PlaneEventType.BossStagger) _camera.Shake(0.45f);
                 else if (e.Type == PlaneEventType.BossSnap) _camera.Shake(0.35f);
@@ -673,7 +684,9 @@ public partial class TopDownMain : Node3D
         var p = _world.Player;
         _debugMap.SetPlayer(_world.Player.Position);
         _minimap.Track(p.Position, p.Velocity);
-        _fog.Reveal(p.Position, MinimapView.RevealRadius, MinimapView.RevealSoft);
+        // Lantern Pearl: a brighter glow shows more of the level around her.
+        float glow = _world.Run.Loadout.Stats[Stat.Glow];
+        _fog.Reveal(p.Position, MinimapView.RevealRadius * (1f + 0.5f * (glow - 1f)), MinimapView.RevealSoft);
         for (int i = 0; i < _map.Pois.Count; i++)
             if (System.Numerics.Vector2.Distance(_map.Pois[i].Position, p.Position) <= MinimapView.SpotRadius) _spotted.Add(i);
         // Entering a place names it under the minimap.
@@ -1010,6 +1023,9 @@ public partial class TopDownMain : Node3D
         bool dive = Input.IsActionPressed(InputSetup.Dive);
         input.Dive = dive && !_diveLatched || _autoDive && _world.CanDive;
         _diveLatched = dive;
+        bool use = Input.IsActionPressed(InputSetup.Active);
+        input.UseActive = use && !_activeLatched || _autoActive && _world.Run.ActiveCharge >= 1f;
+        _activeLatched = use;
         if (AutoFire(ref input)) return input;
         // Shooting: arrow keys aim and fire; otherwise the held left mouse button fires toward the pointer.
         var arrows = System.Numerics.Vector2.Zero;
@@ -1041,7 +1057,8 @@ public partial class TopDownMain : Node3D
             : _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, from)).Select(m => (System.Numerics.Vector2?)m.Position).FirstOrDefault();
         if (target is not { } at || System.Numerics.Vector2.DistanceSquared(at, from) < 1e-4f) return false;
         input.Aim = System.Numerics.Vector2.Normalize(at - from);
-        input.Fire = true;
+        // With Pearl Diver, let go once the pearl is fully charged.
+        input.Fire = !(_world.Run.Loadout.Shot.Charge && _world.Player.Charge >= PlaneCombatTuning.ChargeSeconds);
         return true;
     }
 

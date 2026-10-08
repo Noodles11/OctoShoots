@@ -23,21 +23,11 @@ public class PlanePearlTests
     static PlaneRun NewRun() => new(Catalog.Value, new Tuning());
 
     [Fact]
-    public void EveryPortedPearlIsInTheCatalogAndShapesShots()
-    {
-        foreach (string id in PlaneRun.ShotPearls)
-        {
-            Assert.True(Catalog.Value.Contains(id), id);
-            Assert.NotNull(Catalog.Value[id].Shot);
-        }
-    }
-
-    [Fact]
     public void TheTreasureRoomHoldsAPearlSheCanTake()
     {
         var w = new PlaneWorld(Room1.Value, new Tuning(), NewRun());
         var pearl = Assert.Single(w.Pearls);
-        Assert.Contains(pearl.ItemId, PlaneRun.ShotPearls);
+        Assert.Contains(pearl.ItemId, PlaneRun.PortedPearls);
         var treasure = w.Map.Pois.Single(p => p.Kind == PoiKind.TreasureCave);
         Assert.Equal(treasure.Position, pearl.Position);
 

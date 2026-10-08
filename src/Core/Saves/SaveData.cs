@@ -106,6 +106,8 @@ public sealed class SuspendedRun
     public List<string> Items { get; set; } = new();
     public float Hp { get; set; }
     public int Shells { get; set; }
+    /// <summary>How charged her active pearl was (0–1).</summary>
+    public float ActiveCharge { get; set; } = 1f;
     /// <summary>Play time of the run so far (the HUD clock).</summary>
     public double Elapsed { get; set; }
     /// <summary>The run's totals so far, for the death splash.</summary>

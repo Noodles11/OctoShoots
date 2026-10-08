@@ -11,11 +11,15 @@ namespace OctoShoots.Core.Plane;
 public sealed class PlaneRun
 {
     /// <summary>
-    /// The pearls ported to the plane so far — the ones that change her shots the most. Treasure rooms hold these.
+    /// The pearls ported to the plane so far (docs/PEARLS.md marks them): treasure rooms, shops and Queen Clam offer
+    /// only these. Passive ones first, then the active ones.
     /// </summary>
-    public static readonly string[] ShotPearls =
+    public static readonly string[] PortedPearls =
     {
         "triple_tentacle", "hammerhead", "anglerfish_lure", "swordfish_bill", "mirror_scale", "boomerang_shrimp", "double_helix",
+        "coral_crown", "moon_jelly_heart", "shark_tooth", "pearl_diver", "starfish_arm", "ink_sac", "remora_sucker",
+        "captains_hook", "lantern_pearl",
+        "bubble_shield", "whale_song",
     };
 
     public PlaneRun(ItemCatalog? catalog, Tuning tuning)
@@ -37,10 +41,17 @@ public sealed class PlaneRun
 
     public float MaxHp => Loadout.Stats.MaxHp;
 
+    /// <summary>The active pearl she holds (the last one taken; one at a time), used with F.</summary>
+    public ItemDef? Active => Loadout.Active;
+
+    /// <summary>How charged the active pearl is, 0 → 1 (ready). A new one comes charged.</summary>
+    public float ActiveCharge { get; set; } = 1f;
+
     public void Add(string itemId)
     {
         Items.Add(itemId);
         Rebuild();
+        if (Active?.Id == itemId) ActiveCharge = 1f;
     }
 
     void Rebuild() => Loadout = Loadout.Build(Catalog, Items, Tuning);

@@ -67,6 +67,21 @@ public static class PlaneCombatTuning
     /// <summary>Wave shots weave this far either side of their line, this many times a second.</summary>
     public const float WaveAmplitude = 0.35f;
     public const float WaveTurns = 3f;
+
+    /// <summary>
+    /// Pearl Diver: holding fire charges the next throw, full after ChargeSeconds; let go and it flies as a pearl with up
+    /// to ChargeDamage× the damage and ChargeSize× the size of a bubble (a tap throws a plain one).
+    /// </summary>
+    public const float ChargeSeconds = 1f, ChargeDamage = 3f, ChargeSize = 2.2f;
+    /// <summary>Starfish Arm: a bubble grows as it flies, reaching GrowMax× its size and damage at the end of its range.</summary>
+    public const float GrowMax = 2f;
+    /// <summary>
+    /// Ink Sac: wherever a bubble pops it bursts into ink, hurting everything within InkBlastRadius of its edge for
+    /// InkBlastDamage of its own damage (on top of the hit itself).
+    /// </summary>
+    public const float InkBlastRadius = 1.8f, InkBlastDamage = 0.6f;
+    /// <summary>A hit shoves a mob along the shot at Tuning.ShotKnockback × her knockback stat (m/s), easing off at this rate.</summary>
+    public const float KnockDecay = 6f;
 }
 
 /// <summary>
@@ -88,6 +103,8 @@ public sealed class PlaneMob : PlaneSwimmer
     public float Spines = 1f;
     /// <summary>How long it has not seen her while facing her.</summary>
     public float LostSight;
+    /// <summary>Knocked back by her hits: this velocity, easing off (KnockDecay).</summary>
+    public Vector2 Knock;
     public bool Alive => Hp > 0f;
     /// <summary>Its body: calm, or the ball it blows up into.</summary>
     public float Radius => PufferlingTuning.CalmRadius + (PufferlingTuning.InflatedRadius - PufferlingTuning.CalmRadius) * Inflate;
@@ -106,6 +123,10 @@ public sealed class PlaneShot
     public float Age;
     public float Traveled;
     public bool Homing, Pierce, Boomerang, Returning, Wave;
+    /// <summary>Starfish Arm: it grows as it flies. Ink Sac: it bursts into ink where it pops.</summary>
+    public bool Grow, Explosive;
+    /// <summary>Pearl Diver: how charged it was when thrown, 0–1 (the view draws a charged one as a pearl).</summary>
+    public float Charged;
     /// <summary>Bubbles: thrown at Speed0, easing to a stop at Range (0: a plain shot at constant speed).</summary>
     public float Speed0, Range;
     /// <summary>How long a bubble has rested since it stopped.</summary>
@@ -221,7 +242,7 @@ public sealed partial class PlaneWorld
         foreach (var poi in Map.Pois)
         {
             if (poi.Kind != PoiKind.TreasureCave) continue;
-            var offer = PlaneRun.ShotPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
+            var offer = PlaneRun.PortedPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
             if (offer.Count == 0) break;
             Pearls.Add(new PlanePearl { ItemId = offer[rng.Int(offer.Count)], Position = poi.Position });
         }
@@ -290,34 +311,64 @@ public sealed partial class PlaneWorld
         var p = Player;
         p.ShotTimer -= Dt;
         p.HurtTimer -= Dt;
+        _shieldPing -= Dt;
 
         StepAmbushes();
+        StepActive(input);
 
         // Clementine's shots, toward her aim while fire is held, shaped by her pearls.
-        if (input.Fire && p.ShotTimer <= 0f && p.Aim.LengthSquared() > 0.5f)
+        bool aimed = p.Aim.LengthSquared() > 0.5f;
+        if (Run.Loadout.Shot.Charge)
         {
-            p.ShotTimer = PlaneCombatTuning.ShotInterval;
-            int thrown = Volley(p.Aim);
-            Events.Add(new PlaneEvent(PlaneEventType.Shot, p.Position, p.Aim, thrown));
+            // Pearl Diver: held, the next throw charges; let go, it flies.
+            if (input.Fire && aimed)
+            {
+                if (p.ShotTimer <= 0f)
+                {
+                    float before = p.Charge;
+                    p.Charge = MathF.Min(p.Charge + Dt, PlaneCombatTuning.ChargeSeconds);
+                    if (before < PlaneCombatTuning.ChargeSeconds && p.Charge >= PlaneCombatTuning.ChargeSeconds)
+                        Events.Add(new PlaneEvent(PlaneEventType.ChargeFull, p.Position, p.Aim));
+                }
+            }
+            else if (p.Charge > 0f)
+            {
+                p.ShotTimer = PlaneCombatTuning.ShotInterval;
+                int thrown = Volley(p.Aim, p.Charge / PlaneCombatTuning.ChargeSeconds);
+                p.Charge = 0f;
+                Events.Add(new PlaneEvent(PlaneEventType.Shot, p.Position, p.Aim, thrown));
+            }
         }
+        else
+        {
+            p.Charge = 0f;
+            if (input.Fire && p.ShotTimer <= 0f && aimed)
+            {
+                p.ShotTimer = PlaneCombatTuning.ShotInterval;
+                int thrown = Volley(p.Aim);
+                Events.Add(new PlaneEvent(PlaneEventType.Shot, p.Position, p.Aim, thrown));
+            }
+        }
+        p.WasFiring = input.Fire;
 
         // Pearls: swim over one to take it.
         foreach (var pearl in Pearls)
         {
             if (pearl.Taken || Vector2.Distance(pearl.Position, p.Position) > Radius + PlaneCombatTuning.PearlReach) continue;
             pearl.Taken = true;
-            float before = Run.MaxHp;
-            Run.Add(pearl.ItemId);
-            p.Hp = MathF.Min(p.Hp + MathF.Max(Run.MaxHp - before, 0f), Run.MaxHp);
-            LastPearl = pearl.ItemId;
-            Stats.PearlsFound++;
-            Events.Add(new PlaneEvent(PlaneEventType.PearlCollected, pearl.Position, Vector2.Zero));
+            Absorb(pearl.ItemId, pearl.Position);
         }
 
         foreach (var mob in Mobs)
         {
             if (!mob.Alive) continue;
             mob.HitFlash -= Dt;
+            // Knocked back by her hits, easing off.
+            if (mob.Knock.LengthSquared() > 1e-4f)
+            {
+                Move(ref mob.Position, ref mob.Knock, PufferlingTuning.CalmRadius, report: false, barrier: ArenaBarrier.Outside);
+                mob.Knock *= MathF.Exp(-PlaneCombatTuning.KnockDecay * Dt);
+            }
             StepPufferling(mob);
         }
 
@@ -371,17 +422,8 @@ public sealed partial class PlaneWorld
                 {
                     if (!mob.Alive || Vector2.Distance(mob.Position, shot.Position) > mob.Radius + shot.Radius) continue;
                     if (shot.Hit is not null && !shot.Hit.Add(mob)) continue;
-                    mob.Hp -= shot.Damage;
-                    if (!mob.Aggro) Notice(mob);
-                    mob.HitFlash = PlaneCombatTuning.HitFlash;
+                    DamageMob(mob, shot.Damage * GrowFactor(shot), shot.Velocity);
                     if (!shot.Pierce && !shot.Boomerang) Pop(shot);
-                    Events.Add(new PlaneEvent(mob.Alive ? PlaneEventType.MobHit : PlaneEventType.MobDefeated, mob.Position, shot.Velocity, shot.Damage));
-                    if (!mob.Alive)
-                    {
-                        Stats.MobsDefeated++;
-                        DropShells(mob.Position);
-                        Free(mob);
-                    }
                     if (shot.Life <= 0f) break;
                 }
             }
@@ -419,11 +461,102 @@ public sealed partial class PlaneWorld
         Events.Add(new PlaneEvent(PlaneEventType.MobNoticed, mob.Position, Vector2.Zero));
     }
 
-    /// <summary>She is hurt, unless dashing or still in the grace after the last hit.</summary>
+    /// <summary>A mob takes a hit: it notices her, flashes, is shoved along dir, and is freed when its health runs out.</summary>
+    void DamageMob(PlaneMob mob, float damage, Vector2 dir)
+    {
+        mob.Hp -= damage;
+        if (!mob.Aggro) Notice(mob);
+        mob.HitFlash = PlaneCombatTuning.HitFlash;
+        mob.Knock += SafeNormalize(dir) * Tuning.ShotKnockback * Run.Loadout.Stats[Stat.Knockback];
+        Events.Add(new PlaneEvent(mob.Alive ? PlaneEventType.MobHit : PlaneEventType.MobDefeated, mob.Position, dir, damage));
+        if (mob.Alive) return;
+        Stats.MobsDefeated++;
+        DropShells(mob.Position);
+        Free(mob);
+    }
+
+    /// <summary>Ink Sac: a popped bubble bursts into ink, hurting every mob (and Queen Clam, while open) within reach.</summary>
+    void InkBlast(PlaneShot shot)
+    {
+        float reach = PlaneCombatTuning.InkBlastRadius + shot.Radius;
+        float damage = shot.Damage * GrowFactor(shot) * PlaneCombatTuning.InkBlastDamage;
+        Events.Add(new PlaneEvent(PlaneEventType.InkBlast, shot.Position, Vector2.Zero, reach));
+        foreach (var mob in Mobs)
+            if (mob.Alive && Vector2.Distance(mob.Position, shot.Position) < reach + mob.Radius)
+                DamageMob(mob, damage, mob.Position - shot.Position);
+        if (Boss is { Stage: BossStage.Fight, Open: true } boss && Vector2.Distance(boss.Position, shot.Position) < reach + PlaneBossTuning.BodyRadius)
+            DamageBoss(boss, damage, boss.Position - shot.Position);
+    }
+
+    /// <summary>A pearl taken (found or bought): absorbed into her loadout; one that heals on pickup heals her now.</summary>
+    void Absorb(string itemId, Vector2 at)
+    {
+        var p = Player;
+        Run.Add(itemId);
+        if (Run.Catalog is { } catalog && catalog.TryGet(itemId, out var item))
+            foreach (var e in item.Effects)
+                if (e.Trigger == Trigger.OnPickup && e.Action == EffectAction.Heal) p.Hp += e.Value;
+        p.Hp = MathF.Min(p.Hp, Run.MaxHp);
+        LastPearl = itemId;
+        Stats.PearlsFound++;
+        Events.Add(new PlaneEvent(PlaneEventType.PearlCollected, at, Vector2.Zero));
+    }
+
+    /// <summary>
+    /// The active pearl (F): it recharges over its listed time (faster with her recharge stat), and when charged, F uses
+    /// it. Bubble Shield: untouchable for its duration. Whale Song: heals (not at full HP).
+    /// </summary>
+    void StepActive(in PlaneInput input)
+    {
+        var p = Player;
+        p.ShieldTimer -= Dt;
+        if (Run.Active?.Active is not { } spec) return;
+        if (Run.ActiveCharge < 1f)
+            Run.ActiveCharge = MathF.Min(1f, Run.ActiveCharge + Dt * Run.Loadout.Stats[Stat.ActiveRecharge] / MathF.Max(spec.Recharge, 0.1f));
+        if (!input.UseActive) return;
+        if (Run.ActiveCharge < 1f)
+        {
+            Events.Add(new PlaneEvent(PlaneEventType.ActiveNotReady, p.Position, Vector2.Zero));
+            return;
+        }
+        float size = 0f;
+        switch (spec.Action)
+        {
+            case ActiveAction.BubbleShield:
+                p.ShieldTimer = spec.Duration;
+                break;
+            case ActiveAction.WhaleSong:
+                if (p.Hp >= Run.MaxHp)
+                {
+                    Events.Add(new PlaneEvent(PlaneEventType.ActiveDenied, p.Position, Vector2.Zero));
+                    return;
+                }
+                size = MathF.Min(spec.Value, Run.MaxHp - p.Hp);
+                p.Hp += size;
+                break;
+            // The other actives are not on the plane yet (they are never offered).
+            default:
+                return;
+        }
+        Run.ActiveCharge = 0f;
+        Events.Add(new PlaneEvent(PlaneEventType.ActiveUsed, p.Position, Vector2.Zero, size));
+    }
+
+    /// <summary>Bubble Shield turned a hit away: told at most this often.</summary>
+    float _shieldPing;
+
+    /// <summary>She is hurt, unless shielded, dashing or still in the grace after the last hit.</summary>
     bool HurtPlayer(float damage, Vector2 dir, DamageSource source)
     {
         var p = Player;
-        if (p.DashInvulnerableTimer > 0f || p.HurtTimer > 0f || Defeated) return false;
+        if (Defeated) return false;
+        if (p.ShieldTimer > 0f)
+        {
+            if (_shieldPing <= 0f) Events.Add(new PlaneEvent(PlaneEventType.ShieldBlocked, p.Position, dir));
+            _shieldPing = 0.2f;
+            return false;
+        }
+        if (p.DashInvulnerableTimer > 0f || p.HurtTimer > 0f) return false;
         p.Hp -= damage;
         Stats.DamageTaken += damage;
         p.HurtTimer = PlaneCombatTuning.PlayerHurtGrace;
@@ -432,13 +565,21 @@ public sealed partial class PlaneWorld
         return true;
     }
 
-    /// <summary>One volley along the aim: her loadout's shot count, fan or cone, and every flag on each shot.</summary>
-    int Volley(Vector2 aim)
+    /// <summary>Her damage stat as a factor on a bubble's damage (1 with no pearls; Shark Tooth and Coral Crown raise it).</summary>
+    float DamageScale => Run.Loadout.Stats.Damage / MathF.Max(Tuning.Damage, 0.01f);
+
+    /// <summary>
+    /// One volley along the aim: her loadout's shot count, fan or cone, and every flag on each shot. Charge (Pearl
+    /// Diver, 0–1) makes each one bigger and harder.
+    /// </summary>
+    int Volley(Vector2 aim, float charge = 0f)
     {
         var p = Player;
         var spec = Run.Loadout.Shot;
         int count = Math.Max(1, spec.Multishot);
         float speed = PlaneCombatTuning.ShotSpeed;
+        float damage = PlaneCombatTuning.ShotDamage * spec.DamageMult * DamageScale * (1f + (PlaneCombatTuning.ChargeDamage - 1f) * charge);
+        float radius = PlaneCombatTuning.ShotRadius * spec.SizeMult * (1f + (PlaneCombatTuning.ChargeSize - 1f) * charge);
         _volleys++;
         for (int i = 0; i < count; i++)
         {
@@ -455,9 +596,12 @@ public sealed partial class PlaneWorld
                 Range = PlaneCombatTuning.BubbleRange,
                 Life = PlaneCombatTuning.ShotLife,
                 FromPlayer = true,
-                Damage = PlaneCombatTuning.ShotDamage * spec.DamageMult,
-                Radius = PlaneCombatTuning.ShotRadius * spec.SizeMult,
-                BaseRadius = PlaneCombatTuning.ShotRadius * spec.SizeMult,
+                Damage = damage,
+                Radius = radius,
+                BaseRadius = radius,
+                Grow = spec.Grow,
+                Explosive = spec.Explosive,
+                Charged = charge,
                 Volley = _volleys,
                 Homing = spec.Homing,
                 Pierce = spec.Pierce,
@@ -506,13 +650,26 @@ public sealed partial class PlaneWorld
                 keep.Bubbles += added;
                 if (added > 0 && keep.Bubbles == PlaneCombatTuning.BubbleCap) Events.Add(new PlaneEvent(PlaneEventType.BubbleFull, keep.Position, keep.Velocity));
                 keep.BaseRadius = MathF.Max(keep.BaseRadius, gone.BaseRadius);
-                keep.Radius = keep.BaseRadius * (1f + PlaneCombatTuning.BubbleGrowth * (keep.Bubbles - 1));
+                keep.Charged = MathF.Max(keep.Charged, gone.Charged);
+                Resize(keep);
                 // Absorbed, no pop.
                 gone.Life = -1000f;
                 if (gone == a) break;
             }
         }
     }
+
+    /// <summary>Starfish Arm: how much a bubble has grown with the distance flown (1 when it does not grow).</summary>
+    static float GrowFactor(PlaneShot shot)
+    {
+        if (!shot.Grow) return 1f;
+        float range = shot.Range > 0f ? shot.Range : PlaneCombatTuning.BubbleRange;
+        return 1f + (PlaneCombatTuning.GrowMax - 1f) * MathUtil.Clamp01(shot.Traveled / range);
+    }
+
+    /// <summary>A bubble's radius: its own, grown by the bubbles merged into it and by the distance it has flown.</summary>
+    static void Resize(PlaneShot shot) =>
+        shot.Radius = shot.BaseRadius * (1f + PlaneCombatTuning.BubbleGrowth * (shot.Bubbles - 1)) * GrowFactor(shot);
 
     static Vector2 Rotate(Vector2 v, float a) => new(v.X * MathF.Cos(a) - v.Y * MathF.Sin(a), v.X * MathF.Sin(a) + v.Y * MathF.Cos(a));
 
@@ -608,6 +765,7 @@ public sealed partial class PlaneWorld
             }
         }
         shot.Traveled += Vector2.Distance(shot.Line, next);
+        if (shot.Grow) Resize(shot);
         shot.Line = next;
         shot.Position = next;
         if (shot.Wave)
@@ -617,12 +775,13 @@ public sealed partial class PlaneWorld
         }
     }
 
-    /// <summary>A bubble bursts where it is (on a mob, on rock, or where it came to rest).</summary>
+    /// <summary>A bubble bursts where it is (on a mob, on rock, or where it came to rest); an Ink Sac one bursts into ink.</summary>
     void Pop(PlaneShot shot)
     {
         if (shot.Life < -100f) return;
         shot.Life = -1000f;
         Events.Add(new PlaneEvent(PlaneEventType.ShotPopped, shot.Position, shot.Velocity, shot.Radius));
+        if (shot.FromPlayer && shot.Explosive) InkBlast(shot);
     }
 
     /// <summary>Turns a unit direction toward another by at most maxRadians.</summary>

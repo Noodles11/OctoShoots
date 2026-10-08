@@ -167,6 +167,52 @@ What changes is the protagonist's skin:
   rooms to clear; Glow Burst 10 s … Kraken Call 60 s; Brain Coral ×1.35; glow
   jelly +30%).
 
+#### Diegetic vitals — the gonad rings and the bell rim
+Clementine's body carries her two most important gauges; there is no HP bar and
+no active-item slot on the HUD. Each uses a different part of her anatomy and a
+different visual channel, so they can never be confused.
+
+- **The gonad rings — health.** The four glowing cloverleaf rings at the centre
+  of the bell are her heart, and her health: each holds one quarter of her max
+  HP (25 HP each at the base 100).
+  - *Intact:* a full ring glows a steady warm gold, breathing gently with her
+    pulse.
+  - *Damaged:* as quarters are lost the rings gutter out one by one, from dim
+    ember to darkness (a ring holding part of its quarter glows ember, brighter
+    the more it holds). Healing rekindles them in order. The rings follow her
+    HP smoothly (draining at most 0.8 of her max a second, rekindling at 1.5),
+    so a lost quarter visibly gutters rather than blinking off.
+  - *Critical:* at a quarter or less, the last ring pulses slowly between dark
+    ember and a bright orange glow — a dying light at the centre of her body,
+    readable in peripheral vision without looking away from the fight.
+  - The centre of the bell is where the eye rests on a jellyfish, which is why
+    health — the thing she must always know — lives there.
+- **The bell rim — active-pearl charge.** The glowing marginal band at the
+  outer edge of the bell is her readiness gauge, a fuse of light drawn on her
+  body. With no active pearl it is plain margin.
+  - *Charging:* a light sweeps clockwise round the rim from the top of the
+    screen (her slow turn is undone, so the top stays the top), filling the
+    circle in proportion to the recharge, a bright head at its front; the unlit
+    part is a dim track. Fast pearls race round; slow ones creep.
+  - *Ready:* the full ring settles into a slow gold breathing pulse — the bell
+    itself says *now*.
+  - *On use:* the gold whips off the rim counter-clockwise in one snuffed-fuse
+    flash (0.35 s), and the sweep begins again.
+  - The rim is a continuous circle at the silhouette's edge: visible from any
+    camera angle, drawn over the silhouette's dark edge, and far from the
+    gonad rings.
+
+| | Gonad rings (health) | Bell rim (charge) |
+|---|---|---|
+| Position | Centre of bell | Outer edge |
+| Structure | Four discrete circles | One continuous ring |
+| Channel | Brightness (lit / guttered) | Motion (sweeping fill) |
+| Tempo | Changes only on hit or heal | Always moving |
+
+The only overlap is the magenta hurt flash, which washes the whole bell for a
+moment — on purpose: being hurt is an interrupt and should override everything
+for a fraction of a second.
+
 ---
 
 ## 3. Camera & Presentation
@@ -615,9 +661,9 @@ The FP staging ("look up through the surface") is replaced:
 
 ## 9. UI
 
-- **HUD**: health bar (inherited numeric + drain trail), bubble orbs are
-  diegetic under the bell (no ammo counter needed), active-item slot with
-  recharge bar, sand dollars, ink bombs, minimap.
+- **HUD**: health and the active pearl's charge are diegetic on the bell (§2.5:
+  gonad rings and rim), bubble orbs are diegetic under the bell (no ammo
+  counter needed); the HUD keeps sand dollars, ink bombs, the minimap.
 - **Minimap**: circular, top-right, rotates so forward is up (inherited); fog of
   war; landmark icons (inherited §27); beneath-layer shadows *do not* appear on
   it — the map shows your floor only.
@@ -732,8 +778,7 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 - Ridge walls between the camera and Clementine dissolve in a dithered cutout (a presentation rule for walls;
   the canopy layer has its own fade). A canopy fading over Clementine is drawn unblurred while it fades.
 - **Combat** (`PlaneCombat.cs`; the Depth-1 bestiary is being ported onto the plane, the Pufferling first): Clementine has
-  100 HP (an HP bar bottom left, with a trail showing damage just taken; the run's play time, stopped while
-  paused, top centre) and shoots toward the mouse (held) or the
+  100 HP (shown by the gonad rings on her bell, §2.5; the run's play time, stopped while paused, top centre) and shoots toward the mouse (held) or the
   arrow keys — 10 damage, 4–5 volleys a second. Her shots are translucent bubbles: thrown at 17 m/s, they slow
   steadily (constant deceleration) to a stop about 11 m out, hang still there for 0.3 s and pop; they pop on a mob or
   on rock first if they meet one (piercing and boomerang bubbles fly on through mobs). Two of her bubbles that touch
@@ -755,11 +800,30 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 - **Ambushes:** the first time she enters an ambush clearing, 3–4 pufferlings appear in a ring about 5.5 m around
   her (closer in where rock is near), already facing her; the first may blow up after 0.9 s, the others 0.6 s apart. They are ordinary
   mobs from then on: she may swim away, and they stay. An ambush springs once.
-- **Pearls (first pass):** each treasure room holds one pearl she does not have yet, from the ones ported to the
-  plane — those that change her shots the most: Triple Tentacle (3-shot fan), Hammerhead (5-shot cone), Anglerfish
-  Lure (homing), Swordfish Bill (pierce), Mirror Scale (2 bounces off rock), Boomerang Shrimp (returns to her) and
-  Double Helix (2 weaving shots). They stack through the item loadout (items.json); the pearls she carries show as
-  dots above the HP bar, and taking one shows its name and tagline.
+- **Pearls (first pass):** each treasure room holds one pearl she does not have yet, from the 18 ported to the
+  plane (`PlaneRun.PortedPearls`; docs/PEARLS.md marks them). They stack through the item loadout (items.json); the
+  pearls she carries show as dots bottom left, and taking one shows its name and tagline.
+  - **Shots:** Triple Tentacle (3-shot fan), Hammerhead (5-shot cone), Anglerfish Lure (homing), Swordfish Bill
+    (pierce), Mirror Scale (2 bounces off rock), Boomerang Shrimp (returns to her), Double Helix (2 weaving shots).
+  - **Pearl Diver:** holding fire charges the next throw instead of firing (full in 1 s); letting go throws it as a
+    pearl, up to ×3 damage and ×2.2 size at full charge (a tap throws a plain bubble). A pearl swells in front of her
+    while she charges.
+  - **Starfish Arm:** a bubble grows as it flies, to ×2 its size and damage at the end of its range.
+  - **Ink Sac:** her bubbles are dark with ink; wherever one pops (on a mob, on rock, at rest, or popped by a needle)
+    it bursts into a violet ink cloud that hurts everything within 1.8 m of its edge for 60% of its damage, on top of
+    the hit itself (Queen Clam too, while her shell is open). It does not hurt her.
+  - **Stats:** her damage stat scales every bubble (Shark Tooth +0.5, Coral Crown +0.3, on a base of 3.5). Coral Crown
+    and Moon Jelly Heart add 20 max HP and heal 20 when taken (a pearl that raises max HP heals only what it says).
+  - **Captain's Hook:** every hit shoves a mob along the shot (1.5 m/s, easing off at 6/s, so about 0.25 m); the hook
+    makes it ×2.5. Queen Clam is never shoved.
+  - **Remora Sucker:** shells drift to her from 7.5 m instead of 2.5 m.
+  - **Lantern Pearl:** her glow (its light) reaches ×1.8 as far and shines brighter, and she reveals the minimap's fog
+    ×1.4 as far around her.
+  - **Active pearls (F):** she holds one at a time (the last taken; a new one comes charged). Used, it empties and
+    recharges over its listed time; its charge is the rim of her bell (§2.5). The charge carries down the shaft and
+    into a saved run. **Bubble Shield** (20 s): a big iridescent bubble round her for 3 s; nothing hurts her inside it (needles
+    and spines are turned away; it wobbles when struck and flickers before it goes). **Whale Song** (40 s): heals 35 HP,
+    three rings of sound swelling out from her; not usable at full HP ("Already at full health").
 - **Shells (the currency, first pass, `PlaneEconomy.cs`):** small shells lie in caches at the shell cache (6–9),
   and secret rooms (8–12), and every defeated mob drops 1–2; they drift to her from 2.5 m. The shop
   sells two pearls she does not have (15 shells each) and a health top-up (+25 HP, 5 shells, only when hurt): the

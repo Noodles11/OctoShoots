@@ -37,7 +37,7 @@ Arguments after `--`:
   `--calm` (no creatures).
 - Where to start: `--at=start|arch|cave|exit|hole|shop|cache|treasure|ambush|mob|boss`.
 - Automation: `--autopilot` (swims the shortest route to the exit), `--dive` (dives whenever it can), `--fire`,
-  `--paused`.
+  `--use-active` (uses the active pearl whenever it is ready), `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
 - Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
   (no boss title card).

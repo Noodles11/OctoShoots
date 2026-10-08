@@ -239,7 +239,7 @@ public sealed partial class PlaneWorld
     {
         ArenaSealed = false;
         ExitOpen = true;
-        var offer = PlaneRun.ShotPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id || q.Taken)).ToList();
+        var offer = PlaneRun.PortedPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id || q.Taken)).ToList();
         var boss_ = offer.Where(id => Run.Catalog!.TryGet(id, out var item) && item.Pools.Contains("boss")).ToList();
         var pick = boss_.Count > 0 ? boss_ : offer;
         // She shuffles back off the gateway, away from Clementine; the pearl floats down off to one side of it.
@@ -420,22 +420,26 @@ public sealed partial class PlaneWorld
         var boss = Boss;
         if (boss is null || boss.Stage != BossStage.Fight) return false;
         if (Vector2.Distance(shot.Position, boss.Position) > PlaneBossTuning.BodyRadius + shot.Radius) return false;
-        if (boss.Open)
-        {
-            boss.Hp -= shot.Damage;
-            boss.HitFlash = PlaneCombatTuning.HitFlash;
-            Events.Add(new PlaneEvent(PlaneEventType.BossHit, boss.Position, shot.Velocity, shot.Damage));
-            if (boss.Hp <= 0f) FreeBoss(boss);
-            else if (boss.Phase == 1 && boss.Hp <= PlaneBossTuning.Hp * 0.5f)
-            {
-                boss.Phase = 2;
-                SetAct(boss, ClamAct.Stagger);
-                boss.SnapTimer = -1f;
-                Events.Add(new PlaneEvent(PlaneEventType.BossStagger, boss.Position, boss.Facing));
-            }
-        }
+        if (boss.Open) DamageBoss(boss, shot.Damage * GrowFactor(shot), shot.Velocity);
         Pop(shot);
         return true;
+    }
+
+    /// <summary>She hurts Queen Clam while her shell is open: past half health she staggers; at none she is freed.</summary>
+    void DamageBoss(PlaneBoss boss, float damage, Vector2 dir)
+    {
+        if (boss.Stage != BossStage.Fight) return;
+        boss.Hp -= damage;
+        boss.HitFlash = PlaneCombatTuning.HitFlash;
+        Events.Add(new PlaneEvent(PlaneEventType.BossHit, boss.Position, dir, damage));
+        if (boss.Hp <= 0f) FreeBoss(boss);
+        else if (boss.Phase == 1 && boss.Hp <= PlaneBossTuning.Hp * 0.5f)
+        {
+            boss.Phase = 2;
+            SetAct(boss, ClamAct.Stagger);
+            boss.SnapTimer = -1f;
+            Events.Add(new PlaneEvent(PlaneEventType.BossStagger, boss.Position, boss.Facing));
+        }
     }
 
     void FreeBoss(PlaneBoss boss)

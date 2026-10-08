@@ -184,7 +184,7 @@ public class PlaneBossTests
         Assert.False(w.ArenaSealed);
         Assert.True(w.ExitOpen);
         Assert.Equal(pearlsBefore + 1, w.Pearls.Count);
-        Assert.Contains(w.Pearls[^1].ItemId, PlaneRun.ShotPearls);
+        Assert.Contains(w.Pearls[^1].ItemId, PlaneRun.PortedPearls);
         Assert.False(w.Map.Shaft.Contains(w.Pearls[^1].Position), "her pearl floats down beside the Crack, not into it");
         Assert.Equal(1, w.Stats.BossesFreed);
     }
