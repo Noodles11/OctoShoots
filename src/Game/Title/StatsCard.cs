@@ -27,7 +27,8 @@ public partial class StatsCard : PanelContainer
     /// <summary>How each cause of death reads.</summary>
     public static string CauseName(string id) => id switch
     {
-        "mob_shot" => "Pellet Dot's pellets",
+        "puffer_needle" => "A Pufferling's needles",
+        "puffer_spines" => "A Pufferling's spines",
         "boss_pearl" => "Queen Clam's pearls",
         "royal_pearl" => "Queen Clam's royal pearl",
         "boss_snap" => "Queen Clam's snap",

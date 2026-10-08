@@ -50,11 +50,11 @@ public sealed class PlaneInk
     public float MaxLife;
 }
 
-public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PearlCollected, ShellCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
+public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
 /// <summary>What hurt Clementine (the killing blow names what ended a run).</summary>
-public enum DamageSource { None, MobShot, BossPearl, RoyalPearl, BossSnap, BossContact }
+public enum DamageSource { None, PufferNeedle, PufferSpines, BossPearl, RoyalPearl, BossSnap, BossContact }
 
 /// <summary>
 /// Size: a popped bubble's radius; the bubbles in a volley (Shot); the damage dealt or taken (MobHit, MobDefeated,
@@ -84,6 +84,7 @@ public sealed partial class PlaneWorld
         Player.Hp = Run.Hp;
         _rocks = new List<WeakRock>(map.WeakRocks);
         PlaceMobs();
+        PlaceFish();
         PlacePearls();
         PlaceShop();
         PlaceShells();
@@ -197,6 +198,7 @@ public sealed partial class PlaneWorld
 
         StepBoss();
         StepCombat(input);
+        StepFish();
         StepEconomy();
     }
 
@@ -303,7 +305,15 @@ public sealed partial class PlaneWorld
         {
             Mix(m.Position.X);
             Mix(m.Position.Y);
+            Mix(m.Heading);
+            Mix(m.Inflate);
             Mix(m.Hp);
+        }
+        foreach (var f in Fish)
+        {
+            Mix(f.Position.X);
+            Mix(f.Position.Y);
+            Mix(f.Heading);
         }
         foreach (var s in Shots)
         {

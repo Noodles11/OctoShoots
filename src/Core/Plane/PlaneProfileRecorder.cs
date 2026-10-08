@@ -14,7 +14,7 @@ namespace OctoShoots.Core.Plane;
 public sealed class PlaneProfileRecorder
 {
     /// <summary>Sea-pedia ids of the creatures on the plane today.</summary>
-    public const string MobId = "mob", QueenClamId = "queen_clam";
+    public const string MobId = "pufferling", QueenClamId = "queen_clam";
 
     public static readonly IReadOnlyList<string> CreatureIds = new[] { MobId, QueenClamId };
 
@@ -28,7 +28,8 @@ public sealed class PlaneProfileRecorder
     /// <summary>What a damage source is called in the statistics' "how runs ended".</summary>
     public static string SourceId(DamageSource source) => source switch
     {
-        DamageSource.MobShot => "mob_shot",
+        DamageSource.PufferNeedle => "puffer_needle",
+        DamageSource.PufferSpines => "puffer_spines",
         DamageSource.BossPearl => "boss_pearl",
         DamageSource.RoyalPearl => "royal_pearl",
         DamageSource.BossSnap => "boss_snap",
@@ -39,7 +40,7 @@ public sealed class PlaneProfileRecorder
     /// <summary>The creature behind a damage source.</summary>
     public static string? CreatureOf(DamageSource source) => source switch
     {
-        DamageSource.MobShot => MobId,
+        DamageSource.PufferNeedle or DamageSource.PufferSpines => MobId,
         DamageSource.BossPearl or DamageSource.RoyalPearl or DamageSource.BossSnap or DamageSource.BossContact => QueenClamId,
         _ => null,
     };

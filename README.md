@@ -12,7 +12,8 @@ A top-down action roguelite in a darkening ocean.
   Crack — ringed by rock shared with the level below (§4.6). Each level is validated and retried per seed, producing
   a `LevelMap`.
 - **Simulation** (`Core/Plane`). The plane-locked sim: movement and dash, bubble shots that ease out, rest, merge
-  and pop. It also has placeholder mobs and ambushes, pearls, shells and the shop, the dive down the shaft, Menace,
+  and pop. It also has the Pufferling (corrupted ones to free, healthy ones about the reef) and ambushes, pearls,
+  shells and the shop, the dive down the shaft, Menace,
   and Queen Clam, the Depth 1 boss.
 - **Presentation.** The Godot layer: heightfield chunks, the tilted camera with depth focus, the level below drawn
   through the shaft and the dive into it, HUD and run clock, minimap with fog of war, pause menu, splashes, and the
@@ -38,7 +39,7 @@ Arguments after `--`:
 - Automation: `--autopilot` (swims the shortest route to the exit), `--dive` (dives whenever it can), `--fire`,
   `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
-- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance)
+- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
   (no boss title card).
 - Any of these flags skip the title and start a run that is neither recorded nor saved.
 - The title's own review flags:

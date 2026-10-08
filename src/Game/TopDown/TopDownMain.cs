@@ -35,6 +35,7 @@ public partial class TopDownMain : Node3D
     LevelId _id = LevelId.First;
     CombatView _combat = null!;
     BossView _boss = null!;
+    PufferlingView _puffers = null!;
     BannerView _banner = null!;
     float? _bossHp;
     /// <summary>Verification: fire at the nearest mob; start the run with these pearls.</summary>
@@ -142,6 +143,8 @@ public partial class TopDownMain : Node3D
         AddChild(_combat);
         _boss = new BossView();
         AddChild(_boss);
+        _puffers = new PufferlingView();
+        AddChild(_puffers);
         _camera = new CameraRig();
         AddChild(_camera);
         _snow = new MarineSnow(900, new Vector3(22f, 7f, 17f), 0.11f);
@@ -465,7 +468,8 @@ public partial class TopDownMain : Node3D
         _recorder.EnterLevel(_world, _id);
         SaveRun();
         _combat.Show(_world, _catalog);
-        _combat.Visible = _boss.Visible = true;
+        _puffers.Show(_world);
+        _combat.Visible = _boss.Visible = _puffers.Visible = true;
         _boss.Show(_world);
         if (_bossHp is { } bossHp && _world.Boss is { } queen) queen.Hp = bossHp;
         _debugMap.SetMap(_map);
@@ -545,8 +549,19 @@ public partial class TopDownMain : Node3D
     Vector3 Focus(float alpha)
     {
         var p = System.Numerics.Vector2.Lerp(_world.Player.PrevPosition, _world.Player.Position, alpha);
+        // Verification: `--dbg-follow=mob|fish` keeps the camera on the nearest pufferling instead.
+        if (_follow is not null)
+        {
+            var from = p;
+            System.Numerics.Vector2? at = _follow == "fish"
+                ? _world.Fish.OrderBy(f => System.Numerics.Vector2.Distance(f.Position, from)).Select(f => (System.Numerics.Vector2?)f.Position).FirstOrDefault()
+                : _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, from)).Select(m => (System.Numerics.Vector2?)m.Position).FirstOrDefault();
+            if (at is { } q) p = q;
+        }
         return new Vector3(p.X, LevelMap.SwimBand, p.Y);
     }
+
+    string? _follow = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--dbg-follow="))?["--dbg-follow=".Length..];
 
     public override void _Process(double delta)
     {
@@ -618,6 +633,7 @@ public partial class TopDownMain : Node3D
                 else if (e.Type == PlaneEventType.CannotAfford) Say("Not enough shells");
                 else if (e.Type == PlaneEventType.AmbushSprung) Say("Ambush!");
                 else if (e.Type == PlaneEventType.ShotPopped) _combat.Pop(e.Position, e.Size * 1.7f);
+                else if (e.Type == PlaneEventType.NeedlesFired) _puffers.Burst(e.Position, e.Direction, e.Size);
                 else if (e.Type == PlaneEventType.BossLanded) _camera.Shake(0.9f);
                 else if (e.Type == PlaneEventType.BossStagger) _camera.Shake(0.45f);
                 else if (e.Type == PlaneEventType.BossSnap) _camera.Shake(0.35f);
@@ -646,6 +662,7 @@ public partial class TopDownMain : Node3D
 
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
+        _puffers.Sync(_world, dt);
         _boss.Sync(_world, dt);
         if (!OS.GetCmdlineUserArgs().Contains("--dbg-nobanner")) _banner.Sync(_world.Boss);
         if (_world.Boss is { } b) _minimap.SetMud(_world.ArenaCenter, _world.ArenaRadius, b.Cloud);
@@ -696,7 +713,7 @@ public partial class TopDownMain : Node3D
         _bell.Kick();
         _hud.Diving = true;
         // The level's life stays behind: only she goes down.
-        _combat.Visible = _boss.Visible = false;
+        _combat.Visible = _boss.Visible = _puffers.Visible = false;
         _banner.Visible = false;
     }
 

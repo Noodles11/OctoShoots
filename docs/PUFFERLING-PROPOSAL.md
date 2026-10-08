@@ -1,6 +1,7 @@
 # Pufferling — the first proper fish of Depth 1
 
-> Approved (the decisions are in §7); being built. The first real creature on the plane. It replaces the placeholder shooting dots (all of them
+> **Built** (the decisions are in §7). The rules now live in DEPTH1-BESTIARY and DESIGN-TOPDOWN §12.2; this page keeps
+> the design and its reasoning. The first real creature on the plane. It replaces the placeholder shooting dots (all of them
 > become corrupted pufferling) and brings healthy pufferling to the reef. It is built to the same standard as Clementine:
 > its own baked mesh, its own shader, smooth animation driven by the sim. The numbers are first guesses for play.
 > §7 lists what needs a decision. Where it differs from the Pufferling in DEPTH1-BESTIARY, §6 says so; nothing

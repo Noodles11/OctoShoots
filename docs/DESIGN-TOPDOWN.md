@@ -526,10 +526,11 @@ round eyes → glowing slit eyes, smile → teeth, smooth → jagged silhouette,
 desaturation + rim light. A Depth-1 gumdrop is a Depth-6 toothy shadow.
 **Menace** is 0 at the first depth and 1 at the seventh, and keeps rising by the
 same step through every loop (`LevelPlan.MenaceOf`); it changes only on a dive
-through the Crack. In the sim (current pass, placeholder mobs, capped at 3):
+through the Crack. In the sim (current pass, the corrupted pufferlings, capped at 3):
 creatures ×(1 + 0.4·menace) per level, their speed ×(1 + 0.5·menace), their
-shots ×(1 + 0.4·menace) faster and ×(1 + 0.6·menace) more often; the spawn
-budget ×(1 + 0.8·menace).
+needles ×(1 + 0.4·menace) faster, their cooldown ÷(1 + 0.6·menace), and the
+telegraph up to 0.35 s shorter (never under 0.45 s); the spawn budget
+×(1 + 0.8·menace).
 
 ### 6.3 Senses, aggro, fairness (inherited DESIGN-3D §7.2/§7.6)
 Notice ranges halve while slow (<0.6 m/s), double for 2 s after shooting/dashing;
@@ -730,7 +731,7 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 - Boulders and bommies are decoration only, never collision.
 - Ridge walls between the camera and Clementine dissolve in a dithered cutout (a presentation rule for walls;
   the canopy layer has its own fade). A canopy fading over Clementine is drawn unblurred while it fades.
-- **Placeholder combat** (until the Depth-1 bestiary is ported onto the plane, `PlaneCombat.cs`): Clementine has
+- **Combat** (`PlaneCombat.cs`; the Depth-1 bestiary is being ported onto the plane, the Pufferling first): Clementine has
   100 HP (an HP bar bottom left, with a trail showing damage just taken; the run's play time, stopped while
   paused, top centre) and shoots toward the mouse (held) or the
   arrow keys — 10 damage, 4–5 volleys a second. Her shots are translucent bubbles: thrown at 17 m/s, they slow
@@ -740,13 +741,19 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   added), the longer life, and the summed damage, and its radius grows by half the base per bubble merged in, so
   three bubbles make one twice the size and three times the damage. Growth stops at 15 bubbles: a full bubble
   still merges (taking the faster speed and heading and the longer life) but grows no bigger or stronger, and
-  shines with a rainbow sheen. A mob flashes for 0.12 s on each hit. One mob, a shooting dot (30 HP): it notices her within
-  14 m, follows to about 5 m, loses her past 20 m, and fires 10-damage shots every 1.4 s when it has a clear line of
-  sight. Up to 16 per level (more with Menace, §6.2), 10 m apart and 30 m clear of the start: the spawn table's spots first, then canyon
-  water she can reach (seeded order); a defeated mob never respawns. Running out of HP ends the run (see the death
+  shines with a rainbow sheen. A mob flashes for 0.12 s on each hit. **The mobs are corrupted Pufferlings**
+  (docs/PUFFERLING-PROPOSAL.md, DEPTH1-BESTIARY): 30 HP; they wander about a home spot; one that sees her within 10 m
+  turns to face her and drifts closer; within 8 m it blows up (0.8 s), fires 8 needles in a ring turned at random (26
+  m/s, 14 m, 8 damage; a needle pops any of her bubbles it meets and flies on), stays round 0.5 s (its spines sting
+  for 4 on touch), then for 3 s backs away, shrinks and regrows its spines; past 16 m (or 2 s out of sight) it lets
+  her go. Up to 16 per level (more with Menace, §6.2), 10 m apart and 30 m clear of the start: the spawn table's
+  spots first, then canyon water she can reach (seeded order). Freed (THEME-BIBLE §6.5), a pufferling shudders as the
+  tank colours wash out, bubbles burst round it, its price tag sinks, and it swims off as a healthy one, gone once it
+  is out of sight; it never comes back as a mob. **8–12 healthy pufferlings** live on each level, in ones, twos and
+  threes by the plazas and dens: never targets, unbothered by her. Running out of HP ends the run (see the death
   splash below).
-- **Ambushes:** the first time she enters an ambush clearing, 5–7 mobs appear in a ring about 5.5 m around her
-  (closer in where rock is near), already hunting her, their first shots staggered from 0.9 s. They are ordinary
+- **Ambushes:** the first time she enters an ambush clearing, 3–4 pufferlings appear in a ring about 5.5 m around
+  her (closer in where rock is near), already facing her; the first may blow up after 0.9 s, the others 0.6 s apart. They are ordinary
   mobs from then on: she may swim away, and they stay. An ambush springs once.
 - **Pearls (first pass):** each treasure room holds one pearl she does not have yet, from the ones ported to the
   plane — those that change her shots the most: Triple Tentacle (3-shot fan), Hammerhead (5-shot cone), Anglerfish
@@ -810,7 +817,7 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   - **Sea-pedia:**
     - **Pearls:** each ported pearl is absorbed, seen (offered but never taken) or unknown. Its record: times
       absorbed, runs it was in, runs lost holding it, levels cleared with it.
-    - **Creatures:** the Pellet Dot and Queen Clam. Each record: defeated (bosses: freed), defeated you,
+    - **Creatures:** the Pufferling and Queen Clam. Each record: defeated (bosses: freed), defeated you,
       encounters, and best time for bosses.
   - **Statistics:**
     - four headline numbers (runs, best reach, foes defeated, time in the sea);

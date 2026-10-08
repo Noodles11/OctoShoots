@@ -8,12 +8,11 @@ using OctoShoots.Core.Plane;
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// Placeholder combat on screen: the shooting-dot mobs, everyone's shots, pearls and the shop's stands. (The way on is
-/// the level's shaft, drawn by the level itself.)
+/// Combat on screen: everyone's shots (her bubbles, Queen Clam's pearls, the pufferlings' needles), pearls and the shop's
+/// stands. (The pufferlings themselves are PufferlingView; the way on is the level's shaft, drawn by the level.)
 /// </summary>
 public partial class CombatView : Node3D
 {
-    readonly List<MeshInstance3D> _mobs = new();
     readonly List<MeshInstance3D> _shots = new();
     readonly List<Node3D> _pearls = new();
     readonly List<MeshInstance3D> _shells = new();
@@ -24,14 +23,16 @@ public partial class CombatView : Node3D
     static ImageTexture? _tagTexture;
     Poi? _shop;
     StandardMaterial3D _shell = null!;
-    StandardMaterial3D _mob = null!, _mobHurt = null!, _herShot = null!, _theirShot = null!;
+    StandardMaterial3D _herShot = null!, _theirShot = null!;
+    Mesh _needleMesh = null!;
+    ShaderMaterial _needle = null!;
     StandardMaterial3D _clamPearl = null!, _royalPearl = null!;
     float _time;
 
     public override void _Ready()
     {
-        _mob = new StandardMaterial3D { AlbedoColor = new Color(0.12f, 0.05f, 0.08f), EmissionEnabled = true, Emission = new Color(0.9f, 0.15f, 0.2f), EmissionEnergyMultiplier = 0.6f, Roughness = 0.4f, RimEnabled = true, Rim = 0.8f };
-        _mobHurt = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.9f, 0.9f), EmissionEnabled = true, Emission = new Color(1f, 0.6f, 0.6f), EmissionEnergyMultiplier = 2f };
+        _needleMesh = PufferlingView.NeedleMesh();
+        _needle = PufferlingView.NeedleMaterial();
         _herShot = Glow(new Color(1f, 0.85f, 0.65f));
         _bubble = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") };
         _theirShot = Glow(new Color(1f, 0.25f, 0.3f));
@@ -232,10 +233,8 @@ public partial class CombatView : Node3D
             AddChild(node);
             _stands.Add(node);
         }
-        foreach (var m in _mobs) m.QueueFree();
         foreach (var s in _shots) s.QueueFree();
         foreach (var q in _pearls) q.QueueFree();
-        _mobs.Clear();
         _shots.Clear();
         _pearls.Clear();
         _catalog = catalog;
@@ -309,26 +308,6 @@ public partial class CombatView : Node3D
     public void Sync(PlaneWorld world, float dt)
     {
         _time += dt;
-        while (_mobs.Count < world.Mobs.Count)
-        {
-            var m = new MeshInstance3D { Mesh = new SphereMesh { Radius = PlaneCombatTuning.MobRadius, Height = PlaneCombatTuning.MobRadius * 2f, RadialSegments = 16, Rings = 8 } };
-            AddChild(m);
-            _mobs.Add(m);
-        }
-        for (int i = 0; i < _mobs.Count; i++)
-        {
-            var mob = world.Mobs[i];
-            var view = _mobs[i];
-            view.Visible = mob.Alive;
-            if (!mob.Alive) continue;
-            // A slow bob, and a quicker pulse while it hunts.
-            float pulse = mob.Aggro ? 1f + 0.12f * Mathf.Sin(_time * 9f + i) : 1f;
-            view.Position = new Vector3(mob.Position.X, LevelMap.SwimBand + 0.15f * Mathf.Sin(_time * 1.7f + i * 1.3f), mob.Position.Y);
-            view.Scale = Vector3.One * pulse;
-            // A short flash on each hit, nothing in between.
-            view.MaterialOverride = mob.HitFlash > 0f ? _mobHurt : _mob;
-        }
-
         while (_shots.Count < world.Shots.Count)
         {
             var s = new MeshInstance3D { Mesh = _unitSphere, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
@@ -342,6 +321,18 @@ public partial class CombatView : Node3D
             if (!used) continue;
             var shot = world.Shots[i];
             _shots[i].Position = new Vector3(shot.Position.X, LevelMap.SwimBand, shot.Position.Y);
+            _shots[i].Mesh = shot.Needle ? _needleMesh : _unitSphere;
+            if (shot.Needle)
+            {
+                // A pufferling's needle: a spike along its flight.
+                var d = new Vector3(shot.Velocity.X, 0f, shot.Velocity.Y);
+                _shots[i].Basis = d.LengthSquared() > 1e-6f ? new Basis(new Quaternion(Vector3.Up, d.Normalized())) : Basis.Identity;
+                _shots[i].MaterialOverride = _needle;
+                _shots[i].SetInstanceShaderParameter("fade", 1f);
+                _shots[i].SetInstanceShaderParameter("decor", 0f);
+                continue;
+            }
+            _shots[i].Basis = Basis.Identity;
             if (shot.FromPlayer)
             {
                 // A bubble, wobbling a little as it flies.

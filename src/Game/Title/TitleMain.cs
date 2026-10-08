@@ -37,6 +37,7 @@ public partial class TitleMain : Node3D
     // The backdrop.
     LevelView _level = null!;
     BellView _bell = null!;
+    PufferlingView _puffers = null!;
     CameraRig _camera = null!;
     MarineSnow _snow = null!;
     SunLight _sun = null!;
@@ -98,6 +99,8 @@ public partial class TitleMain : Node3D
         _sun.Configure(ReefLook.Shallows.Sun, ReefLook.Shallows.SunEnergy);
         _level = new LevelView();
         AddChild(_level);
+        _puffers = new PufferlingView();
+        AddChild(_puffers);
         _bell = new BellView();
         AddChild(_bell);
         _camera = new CameraRig();
@@ -159,6 +162,7 @@ public partial class TitleMain : Node3D
         _world = new PlaneWorld(map, _tuning, new PlaneRun(_catalog, _tuning));
         _world.Mobs.Clear();
         _world.Ambushes.Clear();
+        _puffers.Show(_world);
         _route = LevelValidator.ShortestPath(map, map.Start.Position, map.Exit.Position, clearance: 1.5f);
         // Back and forth along the first part of the way, well clear of the rift's arena.
         _routeEnd = Math.Max(2, (int)(_route.Count * 0.55f));
@@ -215,6 +219,7 @@ public partial class TitleMain : Node3D
             if (steps == 4) _accumulator = 0;
             float alpha = (float)(_accumulator / PlaneWorld.Dt);
             _bell.Sync(_world, alpha, dt);
+            _puffers.Sync(_world, dt);
             _camera.Track(Focus(alpha), dt);
             _snow.Tick(dt, Focus(alpha) + Vector3.Up * 6f, _camera.Camera.GlobalBasis);
             _level.UpdateCanopy(_world.Player.Position, dt);

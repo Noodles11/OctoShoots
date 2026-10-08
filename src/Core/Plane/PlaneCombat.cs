@@ -8,8 +8,8 @@ using OctoShoots.Core.Items;
 namespace OctoShoots.Core.Plane;
 
 /// <summary>
-/// Placeholder combat numbers for the first plane mob (a shooting dot) and Clementine's shots. Stand-ins until the
-/// Depth-1 bestiary is ported onto the plane; every value here is provisional.
+/// Combat numbers for Clementine's shots and the plane's mobs (the corrupted pufferlings; their own numbers are in
+/// PufferlingTuning). Provisional, tuned in play.
 /// </summary>
 public static class PlaneCombatTuning
 {
@@ -41,19 +41,9 @@ public static class PlaneCombatTuning
     public const float ShotDamage = 10f;
     public const float ShotRadius = 0.15f;
 
-    public const float MobHp = 30f;
-    public const float MobRadius = 0.5f;
-    public const float MobSpeed = 3.2f;
-    public const float MobAccel = 10f;
-    /// <summary>Within this range a mob notices Clementine and follows; it loses her past MobGiveUp.</summary>
-    public const float MobNotice = 14f;
-    public const float MobGiveUp = 20f;
-    /// <summary>It stops closing in this far from her, and shoots.</summary>
-    public const float MobKeepDistance = 5f;
-    public const float MobFireInterval = 1.4f;
-    public const float MobShotSpeed = 8f;
-    public const float MobShotLife = 2.5f;
-    public const float MobShotDamage = 10f;
+    public const float MobHp = PufferlingTuning.Hp;
+    /// <summary>A calm pufferling's body (it grows when it blows up: <see cref="PlaneMob.Radius"/>).</summary>
+    public const float MobRadius = PufferlingTuning.CalmRadius;
 
     /// <summary>Spawn points: at most this many, this far apart, and this far from the start.</summary>
     public const int MaxMobs = 16;
@@ -63,11 +53,11 @@ public static class PlaneCombatTuning
     /// <summary>No diving while a creature that has noticed her is this close (an active battle).</summary>
     public const float DiveSafeDistance = 12f;
 
-    /// <summary>An ambush springs as she enters its clearing: this many mobs, in a ring this far around her.</summary>
-    public const int AmbushMin = 5, AmbushMax = 7;
+    /// <summary>An ambush springs as she enters its clearing: this many pufferlings, in a ring this far around her.</summary>
+    public const int AmbushMin = 3, AmbushMax = 4;
     public const float AmbushRing = 5.5f;
-    /// <summary>Their first shots come staggered after this long, so she has a moment to react.</summary>
-    public const float AmbushFirstShot = 0.9f, AmbushShotStagger = 0.18f;
+    /// <summary>They may first blow up after this long, one after another, so she has a moment to react.</summary>
+    public const float AmbushFirstShot = 0.9f, AmbushShotStagger = 0.6f;
 
     /// <summary>A pearl is picked up within this distance of her edge.</summary>
     public const float PearlReach = 0.8f;
@@ -79,18 +69,28 @@ public static class PlaneCombatTuning
     public const float WaveTurns = 3f;
 }
 
-/// <summary>A shooting dot: the one placeholder mob. Defeated mobs stay defeated (they never respawn).</summary>
-public sealed class PlaneMob
+/// <summary>
+/// A corrupted pufferling (docs/PUFFERLING-PROPOSAL.md): the plane's mob. Freed when its health runs out, it carries on
+/// as a healthy pufferling (a <see cref="PlaneFish"/>); the mob itself never comes back.
+/// </summary>
+public sealed class PlaneMob : PlaneSwimmer
 {
     public int Spawn;
-    public Vector2 Position;
-    public Vector2 Velocity;
     public float Hp = PlaneCombatTuning.MobHp;
-    public float FireTimer = PlaneCombatTuning.MobFireInterval;
+    /// <summary>It may not blow up until this runs out (an ambush staggers its pufferlings with it).</summary>
+    public float FireTimer;
     public bool Aggro;
     /// <summary>Counts down from HitFlash when it is hit (the view flashes it meanwhile).</summary>
     public float HitFlash;
+    public PufferState State;
+    public float StateTime;
+    /// <summary>How much of its spines are on its skin: 0 just after it has fired them, 1 grown back.</summary>
+    public float Spines = 1f;
+    /// <summary>How long it has not seen her while facing her.</summary>
+    public float LostSight;
     public bool Alive => Hp > 0f;
+    /// <summary>Its body: calm, or the ball it blows up into.</summary>
+    public float Radius => PufferlingTuning.CalmRadius + (PufferlingTuning.InflatedRadius - PufferlingTuning.CalmRadius) * Inflate;
 }
 
 public sealed class PlaneShot
@@ -101,7 +101,7 @@ public sealed class PlaneShot
     public bool FromPlayer;
 
     // Her shots, shaped by her pearls (ShotSpec).
-    public float Damage = PlaneCombatTuning.MobShotDamage;
+    public float Damage = PufferlingTuning.NeedleDamage;
     public float Radius = PlaneCombatTuning.ShotRadius;
     public float Age;
     public float Traveled;
@@ -120,6 +120,8 @@ public sealed class PlaneShot
     public Vector2 Line;
     /// <summary>Queen Clam's pearls: any bubble pops one (the royal pearl takes PearlHp bubbles); the royal one homes.</summary>
     public bool BossPearl, Royal;
+    /// <summary>A pufferling's needle: fast, and it pops any bubble it meets (flying on).</summary>
+    public bool Needle;
     public int PearlHp;
     /// <summary>Piercing and boomerang shots hit each mob once (per pass).</summary>
     public HashSet<PlaneMob>? Hit;
@@ -186,8 +188,12 @@ public sealed partial class PlaneWorld
                     {
                         Spawn = Mobs.Count,
                         Position = at,
+                        Home = at,
+                        Heading = MathF.Atan2(-dir.Y, -dir.X),
                         Aggro = true,
+                        State = PufferState.Face,
                         FireTimer = PlaneCombatTuning.AmbushFirstShot + spawned * PlaneCombatTuning.AmbushShotStagger,
+                        Rng = new Rng(rng.NextU64()),
                     });
                     Events.Add(new PlaneEvent(PlaneEventType.MobNoticed, at, Vector2.Zero));
                     spawned++;
@@ -263,7 +269,7 @@ public sealed partial class PlaneWorld
             if (Vector2.Distance(p, Map.Exit.Position) < Map.Exit.Radius + 4f) continue;
             if (!Clear(p, PlaneCombatTuning.MobRadius)) continue;
             if (Mobs.Any(m => Vector2.Distance(m.Position, p) < PlaneCombatTuning.MobSpacing)) continue;
-            Mobs.Add(new PlaneMob { Spawn = Mobs.Count, Position = p });
+            Mobs.Add(new PlaneMob { Spawn = Mobs.Count, Position = p, Home = p, Heading = rng.Range(0f, MathF.Tau), Wait = rng.Range(0f, 3f), Rng = new Rng(rng.NextU64()) });
         }
     }
 
@@ -311,23 +317,8 @@ public sealed partial class PlaneWorld
         foreach (var mob in Mobs)
         {
             if (!mob.Alive) continue;
-            Vector2 to = p.Position - mob.Position;
-            float dist = to.Length();
-            if (!mob.Aggro && dist < PlaneCombatTuning.MobNotice) Notice(mob);
-            else if (mob.Aggro && dist > PlaneCombatTuning.MobGiveUp) mob.Aggro = false;
-
             mob.HitFlash -= Dt;
-            Vector2 dir = dist > 1e-4f ? to / dist : Vector2.Zero;
-            Vector2 wish = mob.Aggro && dist > PlaneCombatTuning.MobKeepDistance ? dir * (PlaneCombatTuning.MobSpeed * (1f + 0.5f * Menace)) : Vector2.Zero;
-            mob.Velocity = MoveToward(mob.Velocity, wish, PlaneCombatTuning.MobAccel * Dt);
-            Move(ref mob.Position, ref mob.Velocity, PlaneCombatTuning.MobRadius, report: false, barrier: ArenaBarrier.Outside);
-
-            mob.FireTimer -= Dt;
-            if (mob.Aggro && mob.FireTimer <= 0f && dist < PlaneCombatTuning.MobGiveUp && LineOfSight(mob.Position, p.Position) && !CrossesRim(mob.Position, p.Position))
-            {
-                mob.FireTimer = PlaneCombatTuning.MobFireInterval / (1f + 0.6f * Menace);
-                Shots.Add(new PlaneShot { Position = mob.Position + dir * (PlaneCombatTuning.MobRadius + 0.2f), Velocity = dir * (PlaneCombatTuning.MobShotSpeed * (1f + 0.4f * Menace)), Life = PlaneCombatTuning.MobShotLife });
-            }
+            StepPufferling(mob);
         }
 
         foreach (var shot in Shots)
@@ -345,6 +336,11 @@ public sealed partial class PlaneWorld
                 Vector2 was = shot.Position;
                 shot.Position += shot.Velocity * Dt;
                 shot.Life -= Dt;
+                // A needle pops any bubble it meets, and flies on.
+                if (shot.Needle)
+                    foreach (var bubble in Shots)
+                        if (bubble.FromPlayer && bubble.Life > 0f && Geo.SegmentDistance(bubble.Position, was, shot.Position) < bubble.Radius + shot.Radius)
+                            Pop(bubble);
                 // Rock stops shots, and so does the sealed arena's wall.
                 if (!Map.IsOpen(shot.Position) || _rocks.Any(r => Vector2.Distance(shot.Position, r.Center) < r.Radius) || CrossesRim(was, shot.Position)) shot.Life = 0f;
             }
@@ -373,7 +369,7 @@ public sealed partial class PlaneWorld
                 }
                 foreach (var mob in Mobs)
                 {
-                    if (!mob.Alive || Vector2.Distance(mob.Position, shot.Position) > PlaneCombatTuning.MobRadius + shot.Radius) continue;
+                    if (!mob.Alive || Vector2.Distance(mob.Position, shot.Position) > mob.Radius + shot.Radius) continue;
                     if (shot.Hit is not null && !shot.Hit.Add(mob)) continue;
                     mob.Hp -= shot.Damage;
                     if (!mob.Aggro) Notice(mob);
@@ -384,6 +380,7 @@ public sealed partial class PlaneWorld
                     {
                         Stats.MobsDefeated++;
                         DropShells(mob.Position);
+                        Free(mob);
                     }
                     if (shot.Life <= 0f) break;
                 }
@@ -391,7 +388,7 @@ public sealed partial class PlaneWorld
             else if (Vector2.Distance(p.Position, shot.Position) < Radius + shot.Radius)
             {
                 shot.Life = 0f;
-                var source = shot.Royal ? DamageSource.RoyalPearl : shot.BossPearl ? DamageSource.BossPearl : DamageSource.MobShot;
+                var source = shot.Royal ? DamageSource.RoyalPearl : shot.BossPearl ? DamageSource.BossPearl : DamageSource.PufferNeedle;
                 if (HurtPlayer(shot.Damage, shot.Velocity, source) && shot.Royal) p.SlowTimer = PlaneBossTuning.SlowSeconds;
             }
         }

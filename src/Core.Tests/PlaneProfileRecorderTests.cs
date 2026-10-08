@@ -80,7 +80,7 @@ public class PlaneProfileRecorderTests
         Assert.True(w.Defeated);
         r.RunDied(w, 120);
         Assert.Equal(1, r.Profile.Stats.Deaths);
-        Assert.Equal(1, r.Profile.Stats.DeathsByCause["mob_shot"]);
+        Assert.Equal(1, r.Profile.Stats.DeathsByCause["puffer_needle"]);
         Assert.Equal(1, r.Profile.Creature(PlaneProfileRecorder.MobId).DefeatedYou);
         Assert.Equal(1, r.Profile.Pearl("hammerhead").RunsLost);
         Assert.Equal(1, r.Profile.Pearl("hammerhead").Runs);
