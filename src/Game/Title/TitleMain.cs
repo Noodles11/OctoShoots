@@ -40,7 +40,7 @@ public partial class TitleMain : Node3D
     CameraRig _camera = null!;
     MarineSnow _snow = null!;
     SunLight _sun = null!;
-    Task<LevelMap>? _backdrop;
+    Task<LevelShape>? _backdrop;
     PlaneWorld? _world;
     List<System.Numerics.Vector2> _route = new();
     int _routeAt, _routeDir = 1, _routeEnd;
@@ -108,7 +108,7 @@ public partial class TitleMain : Node3D
         _camera.SetReducedMotion(_view.ReducedMotion);
 
         var streams = new RunStreams(SeedCode.Parse(BackdropSeed));
-        _backdrop = Task.Run(() => TopDownGenerator.Generate(streams, 1, 1));
+        _backdrop = Task.Run(() => LevelShape.Prepare(TopDownGenerator.Generate(streams, LevelId.First)));
 
         BuildUi();
     }
@@ -152,13 +152,14 @@ public partial class TitleMain : Node3D
     // ───────────────────────── the backdrop ─────────────────────────
 
     /// <summary>The level is ready: show it, empty it of foes, and set Clementine swimming along a canyon.</summary>
-    void ShowBackdrop(LevelMap map)
+    void ShowBackdrop(LevelShape shape)
     {
-        _level.Show(map);
+        var map = shape.Map;
+        _level.Show(shape);
         _world = new PlaneWorld(map, _tuning, new PlaneRun(_catalog, _tuning));
         _world.Mobs.Clear();
         _world.Ambushes.Clear();
-        _route = LevelValidator.ShortestPath(map, map.Start.Position, map.Rift.Position, clearance: 1.5f);
+        _route = LevelValidator.ShortestPath(map, map.Start.Position, map.Exit.Position, clearance: 1.5f);
         // Back and forth along the first part of the way, well clear of the rift's arena.
         _routeEnd = Math.Max(2, (int)(_route.Count * 0.55f));
         _camera.Track(Focus(1f), 0f, snap: true);
@@ -369,11 +370,11 @@ public partial class TitleMain : Node3D
         var p = save.Profile;
         var (cont, contDetail, _, _) = Item("continue");
         cont.GetParent<Control>().Visible = save.Run is not null;
-        if (save.Run is { } run) contDetail.Text = $"Depth {run.Depth} · Room {run.Room} · {run.Seed} · {TitleStyle.Clock(run.Elapsed)}";
+        if (save.Run is { } run) contDetail.Text = $"{run.Where} · {run.Seed} · {TitleStyle.Clock(run.Elapsed)}";
         Item("seeded").Detail.Text = p.RecentSeeds.Count > 0 ? $"last: {p.RecentSeeds[0]}" : "type a seed to share a reef";
         Item("pedia").Detail.Text = $"{SeaPediaCard.PearlsFound(p)} / {PlaneRun.ShotPearls.Length} pearls · {SeaPediaCard.CreaturesMet(p)} / {SeaPediaCard.Creatures.Count} creatures";
         Item("stats").Detail.Text = p.Stats.Runs > 0 ? $"best: {StatsCard.Reach(p.Stats)} · {p.Stats.Runs} runs" : "no runs yet";
-        Item("save").Detail.Text = save.Run is { } r ? $"saved run: Room {r.Room}" : "no saved run";
+        Item("save").Detail.Text = save.Run is { } r ? $"saved run: {r.Where}" : "no saved run";
     }
 
     // ───────────────────────── runs ─────────────────────────
@@ -397,7 +398,7 @@ public partial class TitleMain : Node3D
         var box = new VBoxContainer();
         box.AddThemeConstantOverride("separation", 10);
         card.AddChild(box);
-        box.AddChild(TitleStyle.Text($"Start a new run? Your saved run (Depth {run.Depth} · Room {run.Room}) will be lost.", 17, TitleStyle.Ink, TitleStyle.BodyBold));
+        box.AddChild(TitleStyle.Text($"Start a new run? Your saved run ({run.Where}) will be lost.", 17, TitleStyle.Ink, TitleStyle.BodyBold));
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
         box.AddChild(row);
@@ -628,7 +629,7 @@ public partial class TitleMain : Node3D
             Profile = p,
             Run = new SuspendedRun
             {
-                Seed = "KELP 7Q2Z", Depth = 1, Room = 3, Items = new List<string> { "triple_tentacle", "mirror_scale" },
+                Seed = "KELP 7Q2Z", Depth = 1, Level = 3, Items = new List<string> { "triple_tentacle", "mirror_scale" },
                 Hp = 74, Shells = 31, Elapsed = 761, Foes = 41, ShellsCollected = 88,
                 SavedAt = DateTime.Now.AddMinutes(-42).ToString("s", CultureInfo.InvariantCulture),
             },

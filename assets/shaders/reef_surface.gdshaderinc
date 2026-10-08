@@ -9,6 +9,7 @@
 //   The Crack: an orange glow breathing up from the deepest fissure (reef_crack: x, z, radius, strength).
 
 #include "res://assets/shaders/sunlight.gdshaderinc"
+#include "res://assets/shaders/level_frame.gdshaderinc"
 
 global uniform vec3 reef_water_shallow;
 global uniform vec3 reef_water_deep;
@@ -24,6 +25,8 @@ global uniform vec3 reef_sun;
 global uniform float reef_caustics;
 global uniform float reef_menace;
 global uniform vec4 reef_crack;
+/// 0 on a level drawn below the current one: the Crack (a global) belongs to the current level.
+uniform float crack_mask = 1.0;
 
 struct ReefSkin {
 	vec3 albedo;
@@ -157,12 +160,15 @@ vec3 rs_garden(vec3 w, inout vec3 n) {
 	return c;
 }
 
-// px: how many metres one pixel spans here (from the caller's derivatives), to keep fine patterns from aliasing.
-ReefSkin reef_surface(vec3 w, vec3 n, float time, float px) {
+// local: the point in its level's own coordinates (level_frame.gdshaderinc); patterns are drawn at its absolute
+// position, so a level looks the same wherever it is placed. px: how many metres one pixel spans here (from the
+// caller's derivatives), to keep fine patterns from aliasing.
+ReefSkin reef_surface(vec3 local, vec3 n, float time, float px) {
 	ReefSkin s;
+	vec3 w = lf_pattern(local);
 	float up = n.y;
 	// Height relative to the swim level (0): the seabed lies at about -1, the walls rise above 0.
-	float h = w.y;
+	float h = local.y;
 
 	vec3 nn = n;
 	vec3 sand = rs_sand(w, nn, px);
@@ -181,7 +187,7 @@ ReefSkin reef_surface(vec3 w, vec3 n, float time, float px) {
 	s.rough = mix(mix(0.82, 0.62, gardenK), 0.96, sandK);
 
 	// The impassable reef wall around the square: darker and cooler toward the edge of the world.
-	float edge = min(min(w.x, w.z), min(reef_extent.x - w.x, reef_extent.y - w.z));
+	float edge = min(min(local.x, local.z), min(reef_extent.x - local.x, reef_extent.y - local.z));
 	float rim = 1.0 - smoothstep(0.0, 9.0, edge);
 	c = mix(c, c * 0.55 + reef_murk * 0.2, rim * 0.6);
 
@@ -198,14 +204,14 @@ ReefSkin reef_surface(vec3 w, vec3 n, float time, float px) {
 	s.caustic = sun_caustics(w, time) * reef_caustics * light_strength * face;
 	s.emission = vec3(0.0);
 
-	// The Crack: an orange glow breathing up out of the deepest fissure.
-	if (reef_crack.w > 0.0) {
-		float d = distance(w.xz, reef_crack.xy);
+	// The Crack: an orange glow breathing up out of the deepest fissure (only on the level it belongs to).
+	if (reef_crack.w > 0.0 && crack_mask > 0.0) {
+		float d = distance(local.xz, reef_crack.xy);
 		float inside = (1.0 - smoothstep(reef_crack.z * 0.4, reef_crack.z, d)) * (1.0 - smoothstep(-4.5, -1.6, h));
 		float breathe = 0.72 + 0.28 * sin(time * 1.1 + d * 0.4);
 		float flicker = 0.75 + 0.5 * rs_noise(vec3(w.xz * 0.9, time * 0.35));
 		vec3 ember = mix(vec3(1.0, 0.16, 0.02), vec3(1.0, 0.36, 0.06), smoothstep(-7.0, -3.0, h));
-		s.emission += ember * inside * breathe * flicker * reef_crack.w * 0.9;
+		s.emission += ember * inside * breathe * flicker * reef_crack.w * crack_mask * 0.9;
 		s.albedo = mix(s.albedo, vec3(0.05, 0.03, 0.03), inside * 0.8);
 	}
 	return s;

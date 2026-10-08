@@ -8,7 +8,8 @@ namespace OctoShoots.Game.TopDown;
 
 /// <summary>
 /// The plane HUD, bottom left: Clementine's HP bar (a lagging trail shows the damage just taken) and the pearls she
-/// carries, one dot each in its own colours. A pearl's name and tagline show for a moment when she takes it.
+/// carries, one dot each in its own colours. A pearl's name and tagline show for a moment when she takes it. Over the
+/// shaft, a prompt: Shift to dive, or why she cannot yet.
 /// </summary>
 public partial class HudView : Control
 {
@@ -34,6 +35,9 @@ public partial class HudView : Control
 
     float _bossHp, _bossTrail, _bossShown;
     bool _bossFight;
+    string _prompt = "";
+    bool _promptReady;
+    float _promptShown;
 
     public void Track(PlaneWorld world, ItemCatalog? catalog, float dt)
     {
@@ -55,8 +59,19 @@ public partial class HudView : Control
         _captionTimer -= dt;
         _shells = world.Run.Shells;
         _pulse = Mathf.MoveToward(_pulse, 0f, dt * 2.5f);
+        // Over the shaft: how to dive, or why not yet.
+        bool over = world.OverShaft && !world.Defeated && !Diving;
+        if (over)
+        {
+            _promptReady = world.CanDive;
+            _prompt = world.CanDive ? "dive" : !world.ExitOpen ? "The Crack is sealed" : "Not while fighting";
+        }
+        _promptShown = Mathf.MoveToward(_promptShown, over ? 1f : 0f, dt * 4f);
         QueueRedraw();
     }
+
+    /// <summary>She is diving: no prompt.</summary>
+    public bool Diving { get; set; }
 
     /// <summary>A shell was just collected: the counter flashes and pulses.</summary>
     public void PulseShells() => _pulse = 1f;
@@ -164,6 +179,29 @@ public partial class HudView : Control
             int fontSize = (int)(22f * (1f + 0.3f * k2));
             var col = new Color(1f, 0.9f, 0.8f).Lerp(new Color(1f, 1f, 0.75f), k2);
             DrawString(font, c + new Vector2(22f, 8f + 3f * k2), _shells.ToString(), HorizontalAlignment.Left, -1, fontSize, col);
+        }
+
+        // The dive prompt, low in the middle: a key cap and a word.
+        if (_promptShown > 0.01f)
+        {
+            float a = _promptShown;
+            const int fs = 18;
+            string key = "SHIFT";
+            var ks = font.GetStringSize(key, HorizontalAlignment.Left, -1, 14);
+            var ws = font.GetStringSize(_prompt, HorizontalAlignment.Left, -1, fs);
+            float w = (_promptReady ? ks.X + 22f : 0f) + ws.X + 28f;
+            var p = new Vector2((Size.X - w) * 0.5f, Size.Y * 0.7f);
+            DrawRect(new Rect2(p, new Vector2(w, 34f)), new Color(0.02f, 0.05f, 0.08f, 0.6f * a));
+            float x = p.X + 14f;
+            if (_promptReady)
+            {
+                var cap = new Rect2(new Vector2(x - 4f, p.Y + 7f), new Vector2(ks.X + 8f, 20f));
+                DrawRect(cap, new Color(1f, 0.93f, 0.82f, 0.9f * a));
+                DrawString(font, new Vector2(x, p.Y + 22f), key, HorizontalAlignment.Left, -1, 14, new Color(0.15f, 0.1f, 0.08f, a));
+                x += ks.X + 22f;
+            }
+            var col = _promptReady ? new Color(1f, 0.93f, 0.8f, a) : new Color(0.85f, 0.85f, 0.9f, 0.75f * a);
+            DrawString(font, new Vector2(x, p.Y + 24f), _prompt, HorizontalAlignment.Left, -1, fs, col);
         }
 
         if (_captionTimer > 0f)

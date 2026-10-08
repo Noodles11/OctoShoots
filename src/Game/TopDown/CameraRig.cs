@@ -20,6 +20,8 @@ public partial class CameraRig : Node3D
         && float.TryParse(zoom["--dbg-zoom=".Length..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float d) ? d : Distance;
 
     public Camera3D Camera { get; private set; } = null!;
+    /// <summary>The dive pulls the camera in (1 is the usual distance).</summary>
+    public float Zoom { get; set; } = 1f;
     Vector3 _focus;
     ShaderMaterial _post = null!;
     bool _snapped;
@@ -29,6 +31,19 @@ public partial class CameraRig : Node3D
     public void Shake(float amount)
     {
         if (ShakeEnabled) _shake = Mathf.Max(_shake, amount);
+    }
+
+    /// <summary>The swim level the depth focus is sharp at (the dive slides it down to the level below).</summary>
+    public void SetSwimLevel(float y) => _post.SetShaderParameter("swim_level", y);
+
+    /// <summary>The absolute position of the world's origin (the god rays and the beneath-layer follow it).</summary>
+    public void SetWorldOrigin(Vector2 origin) => _post.SetShaderParameter("world_origin", origin);
+
+    /// <summary>Moves the camera with the world, keeping the view exactly as it was.</summary>
+    public void Shift(Vector3 by)
+    {
+        _focus += by;
+        Camera.GlobalPosition += by;
     }
 
     /// <summary>The reduced-motion setting: no refraction wobble in the water.</summary>
@@ -68,7 +83,7 @@ public partial class CameraRig : Node3D
         }
         float tilt = Mathf.DegToRad(Tilt);
         // North is −Z: the camera sits south of the focus, looking north and down.
-        Vector3 offset = new Vector3(0f, Mathf.Sin(tilt), Mathf.Cos(tilt)) * _distance;
+        Vector3 offset = new Vector3(0f, Mathf.Sin(tilt), Mathf.Cos(tilt)) * _distance * Zoom;
         _shakeTime += dt;
         _shake = Mathf.MoveToward(_shake, 0f, dt * 1.6f);
         Vector3 jolt = _shake > 0f ? new Vector3(Mathf.Sin(_shakeTime * 53f), Mathf.Sin(_shakeTime * 61f + 1f), Mathf.Sin(_shakeTime * 47f + 2f)) * _shake * _shake : Vector3.Zero;

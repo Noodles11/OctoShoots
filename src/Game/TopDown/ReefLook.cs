@@ -1,4 +1,5 @@
 using Godot;
+using OctoShoots.Core.Gen.TopDown;
 
 namespace OctoShoots.Game.TopDown;
 
@@ -51,7 +52,29 @@ public sealed record ReefLook
     public required Color HardCoral { get; init; }
     public required Color Grass { get; init; }
 
+    /// <summary>The next depth's murk (the beneath-layer's shadow tint); worked out from the depth when not set.</summary>
+    public Color? BelowMurk { get; init; }
+
     static Color C(string hex) => Color.FromHtml(hex);
+
+    /// <summary>Partway from one depth's look to another's (the dive through the Crack crosses from one to the next).</summary>
+    public static ReefLook Blend(ReefLook a, ReefLook b, float t)
+    {
+        Color L(Color x, Color y) => x.Lerp(y, t);
+        float F(float x, float y) => Mathf.Lerp(x, y, t);
+        return new ReefLook
+        {
+            Name = t < 0.5f ? a.Name : b.Name,
+            WaterShallow = L(a.WaterShallow, b.WaterShallow), WaterDeep = L(a.WaterDeep, b.WaterDeep), Murk = L(a.Murk, b.Murk),
+            Sand = L(a.Sand, b.Sand), Rock = L(a.Rock, b.Rock), Coral = L(a.Coral, b.Coral), Coral2 = L(a.Coral2, b.Coral2),
+            Algae = L(a.Algae, b.Algae), Sponge = L(a.Sponge, b.Sponge), Butter = L(a.Butter, b.Butter),
+            Sun = L(a.Sun, b.Sun), SunEnergy = F(a.SunEnergy, b.SunEnergy), Ambient = L(a.Ambient, b.Ambient), AmbientEnergy = F(a.AmbientEnergy, b.AmbientEnergy),
+            Caustics = F(a.Caustics, b.Caustics), Rays = F(a.Rays, b.Rays), Menace = F(a.Menace, b.Menace), Saturation = F(a.Saturation, b.Saturation),
+            Vignette = F(a.Vignette, b.Vignette), Fog = F(a.Fog, b.Fog), Beneath = F(a.Beneath, b.Beneath), Contrast = F(a.Contrast, b.Contrast),
+            FanA = L(a.FanA, b.FanA), FanB = L(a.FanB, b.FanB), SoftCoral = L(a.SoftCoral, b.SoftCoral), HardCoral = L(a.HardCoral, b.HardCoral), Grass = L(a.Grass, b.Grass),
+            BelowMurk = L(a.BelowMurk ?? NextDown(a).Murk, b.BelowMurk ?? NextDown(b).Murk),
+        };
+    }
 
     /// <summary>The seven depths (THEME-BIBLE §6.3). Depth 1 is tuned; the rest follow the palette table, to be tuned as they are built.</summary>
     public static ReefLook For(int depth) => depth switch
@@ -155,18 +178,27 @@ public sealed record ReefLook
         V("reef_sun", Sun);
         RenderingServer.GlobalShaderParameterSet("reef_caustics", Caustics);
         // What lies below: the next depth's murk, as a shadow tint.
-        var below = NextDown(this).Murk.SrgbToLinear();
-        RenderingServer.GlobalShaderParameterSet("reef_beneath", new Vector4(Beneath, -14f, Menace, 0f));
+        var below = (BelowMurk ?? NextDown(this).Murk).SrgbToLinear();
         RenderingServer.GlobalShaderParameterSet("reef_beneath_tint", new Vector3(below.R, below.G, below.B));
         RenderingServer.GlobalShaderParameterSet("reef_rays", Rays);
         RenderingServer.GlobalShaderParameterSet("reef_menace", Menace);
         RenderingServer.GlobalShaderParameterSet("reef_saturation", Saturation);
         RenderingServer.GlobalShaderParameterSet("reef_vignette", Vignette);
         RenderingServer.GlobalShaderParameterSet("reef_fog", Fog);
-        // The sea surface a little above the highest reef tops (they reach about 14 m), for the caustics and the rays.
-        RenderingServer.GlobalShaderParameterSet("sea_surface_y", 18f);
-        RenderingServer.GlobalShaderParameterSet("reef_extent", new Vector2(150f, 150f));
+        RenderingServer.GlobalShaderParameterSet("reef_extent", new Vector2(LevelMap.Size, LevelMap.Size));
         RenderingServer.GlobalShaderParameterSet("sun_has_shadow", 0f);
+        SetDrop(0f);
+    }
+
+    /// <summary>
+    /// The dive: the world's swim plane is <paramref name="drop"/> metres down (sinking toward the level below), and the
+    /// sea surface and the beneath-layer sink with it, so the water reads the same from one level to the next.
+    /// </summary>
+    public void SetDrop(float drop)
+    {
+        // The sea surface a little above the highest reef tops (they reach about 14 m), for the caustics and the rays.
+        RenderingServer.GlobalShaderParameterSet("sea_surface_y", 18f - drop);
+        RenderingServer.GlobalShaderParameterSet("reef_beneath", new Vector4(Beneath, -14f - drop, Menace, 0f));
     }
 
     /// <summary>The water around her: ambient light, background, and glow, for this depth.</summary>

@@ -239,7 +239,7 @@ public partial class SeaPediaCard : PanelContainer
         _detail.AddChild(new HSeparator());
         var r = _profile.Pearls.GetValueOrDefault(id) ?? new PearlRecord();
         _detail.AddChild(Record(("Absorbed", r.Absorbed.ToString("N0")), ("Runs it was in", r.Runs.ToString("N0")),
-            ("Runs lost holding it", r.RunsLost.ToString("N0")), ("Rooms cleared with it", r.RoomsCleared.ToString("N0"))));
+            ("Runs lost holding it", r.RunsLost.ToString("N0")), ("Levels cleared with it", r.RoomsCleared.ToString("N0"))));
     }
 
     void ShowCreature(string id, bool known)

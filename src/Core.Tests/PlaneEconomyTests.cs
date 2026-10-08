@@ -16,17 +16,16 @@ public class PlaneEconomyTests
     static readonly Lazy<ItemCatalog> Catalog = new(() =>
         ItemCatalog.FromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "data", "items.json"))));
 
-    static readonly Lazy<LevelMap> Room1 = new(() => TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), 1, 1));
-
-    static PlaneWorld World() => new(Room1.Value, new Tuning(), new PlaneRun(Catalog.Value, new Tuning()));
+    /// <summary>A level with a shop (level 1 of a depth never has one).</summary>
+    static PlaneWorld World() => new(TestLevels.WithShop(), new Tuning(), new PlaneRun(Catalog.Value, new Tuning()));
 
     [Fact]
-    public void ShellCachesLieAtTheItemCacheAndSecrets()
+    public void ShellCachesLieAtTheShellCacheAndSecrets()
     {
         var w = World();
         int expectedMin = w.Map.Pois.Sum(p => p.Kind switch
         {
-            PoiKind.ItemSpawn => PlaneEconomyTuning.CacheMin,
+            PoiKind.ShellCache => PlaneEconomyTuning.CacheMin,
             PoiKind.Secret => PlaneEconomyTuning.SecretMin,
             _ => 0,
         });
@@ -98,11 +97,10 @@ public class PlaneEconomyTests
     }
 
     [Fact]
-    public void ShellsCarryThroughTheRift()
+    public void ShellsCarryDownTheHole()
     {
         var run = new PlaneRun(Catalog.Value, new Tuning()) { Shells = 12 };
-        var room2 = TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), 1, 2);
-        var w = new PlaneWorld(room2, new Tuning(), run);
+        var w = new PlaneWorld(TestLevels.After(TestLevels.WithShop()), new Tuning(), run);
         Assert.Equal(12, w.Run.Shells);
     }
 }

@@ -11,6 +11,7 @@ public static class InputSetup
 	public const string Right = "move_right";
 	public const string Fire = "fire";
 	public const string Dash = "dash";
+	public const string Dive = "dive";
 	public const string Active = "use_active";
 	public const string Bomb = "ink_bomb";
 	public const string Review = "review_pearls";
@@ -25,6 +26,7 @@ public static class InputSetup
 		Key(Left, Godot.Key.A);
 		Key(Right, Godot.Key.D);
 		Key(Dash, Godot.Key.Space);
+		Key(Dive, Godot.Key.Shift);
 		Key(Active, Godot.Key.F);
 		Key(Bomb, Godot.Key.E);
 		Key(Review, Godot.Key.Tab);

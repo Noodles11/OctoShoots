@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using OctoShoots.Core.Gen.TopDown;
 using OctoShoots.Core.Items;
 
 namespace OctoShoots.Core.Plane;
@@ -32,7 +33,7 @@ public sealed class PlaneRun
     public float Hp { get; set; }
     /// <summary>Small shells, the currency: picked up in places and from every mob, spent in shops.</summary>
     public int Shells { get; set; }
-    public int Room { get; set; } = 1;
+    public LevelId Level { get; set; } = LevelId.First;
 
     public float MaxHp => Loadout.Stats.MaxHp;
 

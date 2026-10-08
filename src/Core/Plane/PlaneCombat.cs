@@ -56,11 +56,12 @@ public static class PlaneCombatTuning
     public const float MobShotDamage = 10f;
 
     /// <summary>Spawn points: at most this many, this far apart, and this far from the start.</summary>
-    public const int MaxMobs = 22;
+    public const int MaxMobs = 16;
     public const float MobSpacing = 10f;
     public const float MobStartClearance = 30f;
 
-    public const float GatewayRadius = 2.2f;
+    /// <summary>No diving while a creature that has noticed her is this close (an active battle).</summary>
+    public const float DiveSafeDistance = 12f;
 
     /// <summary>An ambush springs as she enters its clearing: this many mobs, in a ring this far around her.</summary>
     public const int AmbushMin = 5, AmbushMax = 7;
@@ -168,7 +169,7 @@ public sealed partial class PlaneWorld
         {
             if (ambush.Sprung || Vector2.Distance(p.Position, ambush.Center) > ambush.Radius) continue;
             ambush.Sprung = true;
-            var rng = new Rng(Map.Seed ^ 0xA3B05UL ^ ((ulong)ambush.Poi << 16) ^ ((ulong)Map.Reef << 32) ^ ((ulong)Map.Attempt << 48));
+            var rng = new Rng(Map.Seed ^ 0xA3B05UL ^ ((ulong)ambush.Poi << 16) ^ ((ulong)Map.Level << 32) ^ ((ulong)Map.Depth << 40) ^ ((ulong)Map.Attempt << 48));
             int count = PlaneCombatTuning.AmbushMin + rng.Int(PlaneCombatTuning.AmbushMax - PlaneCombatTuning.AmbushMin + 1);
             float turn = rng.Range(0f, MathF.Tau);
             int spawned = 0;
@@ -210,7 +211,7 @@ public sealed partial class PlaneWorld
     /// <summary>A treasure room holds one pearl she does not have yet (chosen from the room's own seed).</summary>
     void PlacePearls()
     {
-        var rng = new Rng(Map.Seed * 0x9E3779B97F4A7C15UL ^ (ulong)(Map.Depth * 1000 + Map.Reef) ^ ((ulong)Map.Attempt << 40));
+        var rng = new Rng(Map.Seed * 0x9E3779B97F4A7C15UL ^ (ulong)(Map.Cycle * 100000 + Map.Depth * 1000 + Map.Level) ^ ((ulong)Map.Attempt << 40));
         foreach (var poi in Map.Pois)
         {
             if (poi.Kind != PoiKind.TreasureCave) continue;
@@ -220,9 +221,20 @@ public sealed partial class PlaneWorld
         }
     }
 
-    /// <summary>The gateway in the rift's arena to the next room: shut until Queen Clam is freed.</summary>
-    public bool GatewayOpen { get; set; } = true;
-    public Vector2 GatewayPosition => Map.Rift.Position;
+    /// <summary>The way down: open, except on a boss level until the boss is freed.</summary>
+    public bool ExitOpen { get; set; } = true;
+
+    /// <summary>She floats over the shaft.</summary>
+    public bool OverShaft => Map.Shaft.Contains(Player.Position);
+
+    /// <summary>An active battle: the arena is sealed, or a creature that has noticed her is close.</summary>
+    public bool InBattle => ArenaSealed || Mobs.Any(m => m.Alive && m.Aggro && Vector2.Distance(m.Position, Player.Position) < PlaneCombatTuning.DiveSafeDistance);
+
+    /// <summary>She may dive now (DESIGN-TOPDOWN §4.6): over the shaft, the way open, and no battle on.</summary>
+    public bool CanDive => OverShaft && ExitOpen && !InBattle && !Defeated;
+
+    /// <summary>Menace as the sim applies it (DESIGN-TOPDOWN §6.2), capped so later loops stay playable.</summary>
+    public float Menace => MathF.Min(Map.Menace, 3f);
 
     /// <summary>
     /// Mob spawn points: the level's spawn table first, then spots in the canyons she can swim to (in a seeded order) —
@@ -236,7 +248,7 @@ public sealed partial class PlaneWorld
         for (float y = LevelMap.RimWidth + 2f; y < LevelMap.Size - LevelMap.RimWidth - 2f; y += 4f)
         for (float x = LevelMap.RimWidth + 2f; x < LevelMap.Size - LevelMap.RimWidth - 2f; x += 4f)
             extra.Add(new Vector2(x, y));
-        var rng = new Rng(Map.Seed ^ 0x6D0B5UL ^ ((ulong)Map.Reef << 20) ^ ((ulong)Map.Attempt << 44));
+        var rng = new Rng(Map.Seed ^ 0x6D0B5UL ^ ((ulong)Map.Level << 20) ^ ((ulong)Map.Depth << 28) ^ ((ulong)Map.Attempt << 44));
         for (int i = extra.Count - 1; i > 0; i--)
         {
             int j = rng.Int(i + 1);
@@ -245,10 +257,10 @@ public sealed partial class PlaneWorld
         spots.AddRange(extra);
         foreach (var p in spots)
         {
-            if (Mobs.Count >= PlaneCombatTuning.MaxMobs) break;
+            if (Mobs.Count >= (int)(PlaneCombatTuning.MaxMobs * (1f + 0.4f * Menace))) break;
             if (float.IsPositiveInfinity(LevelValidator.DistanceAt(reach, p))) continue;
             if (Vector2.Distance(p, Map.Start.Position) < PlaneCombatTuning.MobStartClearance) continue;
-            if (Vector2.Distance(p, Map.Rift.Position) < Map.Rift.Radius + 4f) continue;
+            if (Vector2.Distance(p, Map.Exit.Position) < Map.Exit.Radius + 4f) continue;
             if (!Clear(p, PlaneCombatTuning.MobRadius)) continue;
             if (Mobs.Any(m => Vector2.Distance(m.Position, p) < PlaneCombatTuning.MobSpacing)) continue;
             Mobs.Add(new PlaneMob { Spawn = Mobs.Count, Position = p });
@@ -306,15 +318,15 @@ public sealed partial class PlaneWorld
 
             mob.HitFlash -= Dt;
             Vector2 dir = dist > 1e-4f ? to / dist : Vector2.Zero;
-            Vector2 wish = mob.Aggro && dist > PlaneCombatTuning.MobKeepDistance ? dir * PlaneCombatTuning.MobSpeed : Vector2.Zero;
+            Vector2 wish = mob.Aggro && dist > PlaneCombatTuning.MobKeepDistance ? dir * (PlaneCombatTuning.MobSpeed * (1f + 0.5f * Menace)) : Vector2.Zero;
             mob.Velocity = MoveToward(mob.Velocity, wish, PlaneCombatTuning.MobAccel * Dt);
             Move(ref mob.Position, ref mob.Velocity, PlaneCombatTuning.MobRadius, report: false, barrier: ArenaBarrier.Outside);
 
             mob.FireTimer -= Dt;
             if (mob.Aggro && mob.FireTimer <= 0f && dist < PlaneCombatTuning.MobGiveUp && LineOfSight(mob.Position, p.Position) && !CrossesRim(mob.Position, p.Position))
             {
-                mob.FireTimer = PlaneCombatTuning.MobFireInterval;
-                Shots.Add(new PlaneShot { Position = mob.Position + dir * (PlaneCombatTuning.MobRadius + 0.2f), Velocity = dir * PlaneCombatTuning.MobShotSpeed, Life = PlaneCombatTuning.MobShotLife });
+                mob.FireTimer = PlaneCombatTuning.MobFireInterval / (1f + 0.6f * Menace);
+                Shots.Add(new PlaneShot { Position = mob.Position + dir * (PlaneCombatTuning.MobRadius + 0.2f), Velocity = dir * (PlaneCombatTuning.MobShotSpeed * (1f + 0.4f * Menace)), Life = PlaneCombatTuning.MobShotLife });
             }
         }
 
@@ -397,8 +409,7 @@ public sealed partial class PlaneWorld
 
         Run.Hp = p.Hp;
 
-        if (GatewayOpen && Vector2.Distance(p.Position, GatewayPosition) < PlaneCombatTuning.GatewayRadius)
-            Events.Add(new PlaneEvent(PlaneEventType.GatewayEntered, GatewayPosition, Vector2.Zero));
+        if (input.Dive && CanDive) Events.Add(new PlaneEvent(PlaneEventType.Dived, p.Position, Vector2.Zero));
     }
 
     /// <summary>What hurt her last (on her defeat: what ended the run).</summary>

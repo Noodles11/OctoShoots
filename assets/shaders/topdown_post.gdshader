@@ -39,6 +39,8 @@ uniform vec3 halo_color : source_color = vec3(1.0, 0.77, 0.42);
 uniform float halo_radius = 8.0;
 uniform float halo_strength = 0.16;
 /// The faint refraction wobble (0 with reduced motion).
+/// The absolute position (xz) of the world's origin: the god rays and the beneath-layer never jump after a dive.
+uniform vec2 world_origin = vec2(0.0);
 uniform float wobble = 1.0;
 
 void vertex() {
@@ -129,7 +131,7 @@ void fragment() {
 		float floor_seen = 0.2 + 0.6 * smoothstep(0.5, 1.0, reef_beneath.x);
 		float through = reef_beneath.x * (floor_seen + (1.0 - floor_seen) * smoothstep(1.0, 7.0, below)) * (1.0 - smoothstep(0.0, 1.0, above));
 		vec3 pb = cam + ray * ((reef_beneath.y - cam.y) / min(ray.y, -1e-3));
-		vec2 b = beneath(pb.xz, TIME, reef_crack);
+		vec2 b = beneath(pb.xz + world_origin, TIME, reef_crack + vec4(world_origin, 0.0, 0.0));
 		col = mix(col, col * 0.3 + reef_beneath_tint * 0.1, min(b.x * through * 2.4, 0.8));
 		col += vec3(1.0, 0.36, 0.08) * b.y * through * 0.4;
 	}
@@ -154,7 +156,7 @@ void fragment() {
 		float jitter = hash12(FRAGCOORD.xy + fract(TIME) * 61.0);
 		for (int i = 0; i < 10; i++) {
 			vec3 q = cam + ray * (t0 + span * (float(i) + jitter) / 10.0);
-			shafts += sun_shafts(q, TIME);
+			shafts += sun_shafts(q + vec3(world_origin.x, 0.0, world_origin.y), TIME);
 		}
 		shafts /= 10.0;
 	}

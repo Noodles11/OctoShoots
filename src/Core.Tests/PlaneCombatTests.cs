@@ -8,10 +8,10 @@ using Xunit;
 
 namespace OctoShoots.Core.Tests;
 
-/// <summary>Placeholder plane combat: Clementine's shots, the shooting-dot mob, its spawns, and the rift's gateway.</summary>
+/// <summary>Placeholder plane combat: Clementine's shots, the shooting-dot mob, its spawns, and the dive down the hole.</summary>
 public class PlaneCombatTests
 {
-    static readonly Lazy<LevelMap> Shared = new(() => TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), 1, 1));
+    static readonly Lazy<LevelMap> Shared = new(() => TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), LevelId.First));
 
     static PlaneWorld World() => new(Shared.Value, new Tuning());
 
@@ -19,7 +19,7 @@ public class PlaneCombatTests
     public void EveryLevelHasMobSpawnsClearOfTheStart()
     {
         var w = World();
-        Assert.InRange(w.Mobs.Count, 1, PlaneCombatTuning.MaxMobs);
+        Assert.InRange(w.Mobs.Count, 1, (int)(PlaneCombatTuning.MaxMobs * (1f + 0.4f * w.Menace)));
         foreach (var m in w.Mobs)
         {
             Assert.True(Vector2.Distance(m.Position, w.Map.Start.Position) >= PlaneCombatTuning.MobStartClearance);
@@ -83,17 +83,38 @@ public class PlaneCombatTests
     }
 
     [Fact]
-    public void TheGatewayInTheRiftLeadsOn()
+    public void SheDivesOnlyWhenOverTheHoleAndAsked()
     {
         var w = World();
-        w.Player.Position = w.Player.PrevPosition = w.GatewayPosition;
         foreach (var m in w.Mobs) m.Hp = 0f;
-        // Shut while Queen Clam guards it, open once she is freed.
+        Assert.True(w.ExitOpen, "a level without a boss has its hole open");
+        // Away from the hole, the dive does nothing.
+        w.Step(new PlaneInput { Dive = true });
+        Assert.DoesNotContain(w.Events, e => e.Type == PlaneEventType.Dived);
+        w.Player.Position = w.Player.PrevPosition = w.Map.Exit.Position;
+        Assert.True(w.OverShaft);
         w.Step(default);
-        Assert.DoesNotContain(w.Events, e => e.Type == PlaneEventType.GatewayEntered);
-        w.GatewayOpen = true;
-        w.Step(default);
-        Assert.Contains(w.Events, e => e.Type == PlaneEventType.GatewayEntered);
+        Assert.DoesNotContain(w.Events, e => e.Type == PlaneEventType.Dived);
+        w.Step(new PlaneInput { Dive = true });
+        Assert.Contains(w.Events, e => e.Type == PlaneEventType.Dived);
+    }
+
+    [Fact]
+    public void NoDivingInTheMiddleOfABattle()
+    {
+        var w = World();
+        foreach (var m in w.Mobs) m.Hp = 0f;
+        w.Player.Position = w.Player.PrevPosition = w.Map.Exit.Position;
+        // A creature that has noticed her, close by: she cannot leave.
+        w.Mobs.Add(new PlaneMob { Position = w.Map.Exit.Position + new Vector2(PlaneCombatTuning.MobKeepDistance + 1f, 0f), Aggro = true });
+        Assert.True(w.InBattle);
+        w.Step(new PlaneInput { Dive = true });
+        Assert.DoesNotContain(w.Events, e => e.Type == PlaneEventType.Dived);
+        // Once it is freed she may go.
+        w.Mobs[^1].Hp = 0f;
+        Assert.False(w.InBattle);
+        w.Step(new PlaneInput { Dive = true });
+        Assert.Contains(w.Events, e => e.Type == PlaneEventType.Dived);
     }
 
     [Fact]

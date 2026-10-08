@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OctoShoots.Core.Gen.TopDown;
 using OctoShoots.Core.Saves;
 
 namespace OctoShoots.Core.Plane;
@@ -57,14 +58,18 @@ public sealed class PlaneProfileRecorder
         if (Profile.RecentSeeds.Count > 5) Profile.RecentSeeds.RemoveRange(5, Profile.RecentSeeds.Count - 5);
     }
 
-    /// <summary>She is in a new room: the furthest reach, and the pearls the room offers are now seen.</summary>
-    public void EnterRoom(PlaneWorld world, int depth, int room)
+    /// <summary>
+    /// She is on a new level: the furthest reach (depths count on through the loops: the second pass's first depth is
+    /// depth 8), and the pearls the level offers are now seen.
+    /// </summary>
+    public void EnterLevel(PlaneWorld world, LevelId level)
     {
         var s = Profile.Stats;
-        if (depth > s.BestDepth || depth == s.BestDepth && room > s.BestRoom)
+        int depth = (level.Cycle - 1) * LevelPlan.Depths + level.Depth;
+        if (depth > s.BestDepth || depth == s.BestDepth && level.Level > s.BestRoom)
         {
             s.BestDepth = depth;
-            s.BestRoom = room;
+            s.BestRoom = level.Level;
         }
         foreach (var pearl in world.Pearls) Profile.SeenItems.Add(pearl.ItemId);
         foreach (var stand in world.Stands)
@@ -136,8 +141,8 @@ public sealed class PlaneProfileRecorder
         }
     }
 
-    /// <summary>She went through the gateway: the room is cleared.</summary>
-    public void RoomCleared(PlaneWorld world, double seconds)
+    /// <summary>She dived on: the level is cleared (the stats keep their old "room" names in the save).</summary>
+    public void LevelCleared(PlaneWorld world, double seconds)
     {
         var s = Profile.Stats;
         s.RoomsCleared++;

@@ -90,15 +90,19 @@ public sealed class CreatureRecord
 }
 
 /// <summary>
-/// A run saved at the start of a room (2D §13.1): continuing regenerates that room from the seed and puts her back in
-/// it with what she carried in.
+/// A run saved at the start of a level (2D §13.1): continuing regenerates that level from the seed (a level needs no
+/// other level generated first) and puts her back at its start with what she carried in.
 /// </summary>
 public sealed class SuspendedRun
 {
     public string Seed { get; set; } = "";
     public bool CustomSeed { get; set; }
+    public int Cycle { get; set; } = 1;
     public int Depth { get; set; } = 1;
-    public int Room { get; set; } = 1;
+    public int Level { get; set; } = 1;
+
+    /// <summary>Where the run stands, as the HUD names it.</summary>
+    public string Where => new OctoShoots.Core.Gen.TopDown.LevelId(Cycle, Depth, Level).ToString();
     public List<string> Items { get; set; } = new();
     public float Hp { get; set; }
     public int Shells { get; set; }

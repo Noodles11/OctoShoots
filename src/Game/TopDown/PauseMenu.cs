@@ -7,7 +7,7 @@ using OctoShoots.Core.Plane;
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// ESC: the game stops under a dimmed screen. Resume, restart the run (a new random seed, room 1, no pearls, full HP),
+/// ESC: the game stops under a dimmed screen. Resume, restart the run (a new random seed, level 1, no pearls, full HP),
 /// and every pearl Clementine has absorbed with its name, tagline and effects (the item caption lines).
 /// </summary>
 public partial class PauseMenu : Control
@@ -64,7 +64,7 @@ public partial class PauseMenu : Control
         var restart = new Button { Text = "Restart run", CustomMinimumSize = new Vector2(170f, 40f) };
         restart.Pressed += () => RestartPressed?.Invoke();
         buttons.AddChild(restart);
-        var quit = new Button { Text = "Save & quit to title", CustomMinimumSize = new Vector2(190f, 40f), TooltipText = "You'll resume at the start of this room." };
+        var quit = new Button { Text = "Save & quit to title", CustomMinimumSize = new Vector2(190f, 40f), TooltipText = "You'll resume at the start of this level." };
         quit.Pressed += () => QuitPressed?.Invoke();
         buttons.AddChild(quit);
 
@@ -82,9 +82,9 @@ public partial class PauseMenu : Control
     }
 
     /// <summary>Fills the menu from the run and shows it.</summary>
-    public void Open(PlaneRun run, ItemCatalog? catalog, string seed, int room, float hp)
+    public void Open(PlaneRun run, ItemCatalog? catalog, string seed, string where, float hp)
     {
-        _summary.Text = $"Seed {seed} · Room {room} · HP {Mathf.CeilToInt(hp)} / {Mathf.RoundToInt(run.MaxHp)} · {run.Items.Count} pearl{(run.Items.Count == 1 ? "" : "s")}";
+        _summary.Text = $"Seed {seed} · {where} · HP {Mathf.CeilToInt(hp)} / {Mathf.RoundToInt(run.MaxHp)} · {run.Items.Count} pearl{(run.Items.Count == 1 ? "" : "s")}";
         foreach (var child in _pearls.GetChildren()) child.QueueFree();
         if (run.Items.Count == 0 || catalog is null)
         {

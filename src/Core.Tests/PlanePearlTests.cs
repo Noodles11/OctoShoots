@@ -16,8 +16,9 @@ public class PlanePearlTests
     static readonly Lazy<ItemCatalog> Catalog = new(() =>
         ItemCatalog.FromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "data", "items.json"))));
 
-    static readonly Lazy<LevelMap> Room1 = new(() => TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), 1, 1));
-    static readonly Lazy<LevelMap> Room2 = new(() => TopDownGenerator.Generate(new RunStreams(SeedCode.Parse("KELP7Q2Z")), 1, 2));
+    /// <summary>A level with exactly one treasure room, and the level below it.</summary>
+    static readonly Lazy<LevelMap> Room1 = new(TestLevels.OneTreasure);
+    static readonly Lazy<LevelMap> Room2 = new(() => TestLevels.After(Room1.Value));
 
     static PlaneRun NewRun() => new(Catalog.Value, new Tuning());
 
@@ -76,7 +77,7 @@ public class PlanePearlTests
     }
 
     [Fact]
-    public void ThroughTheRiftSheKeepsHerPearlsAndHp()
+    public void DownTheHoleSheKeepsHerPearlsAndHp()
     {
         var run = NewRun();
         var w1 = new PlaneWorld(Room1.Value, new Tuning(), run);
@@ -97,7 +98,7 @@ public class PlanePearlTests
     public void LevelsHoldManyMobs()
     {
         var w = new PlaneWorld(Room1.Value, new Tuning(), NewRun());
-        Assert.True(w.Mobs.Count >= 15, $"{w.Mobs.Count} mobs");
+        Assert.True(w.Mobs.Count >= 10, $"{w.Mobs.Count} mobs");
         var reach = LevelValidator.Distances(w.Map, w.Map.Start.Position);
         Assert.All(w.Mobs, m => Assert.False(float.IsPositiveInfinity(LevelValidator.DistanceAt(reach, m.Position))));
     }

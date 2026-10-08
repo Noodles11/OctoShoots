@@ -18,19 +18,21 @@ using OctoShoots.Game.Title;
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it. Opened from the
-/// title screen (RunLaunch); run directly with verification flags, it starts a run on its own and saves nothing.
-/// WASD swims (north is up), Space dashes (InputSetup), the mouse aims, F3 toggles the debug map, R regenerates from the
-/// seed field.
-/// Verification flags: --seed=, --depth=, --room=, --at=start|arch|cave|rift|gate|shop|cache|treasure|ambush|mob|boss,
-/// --autopilot, --fire, --pearls=, --hp=, --boss-hp=, --paused, --map, --f3, --no-focus, --capture=dir --frames=a,b.
+/// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it; over the level's
+/// shaft, Shift dives down into the next one, which has been readied underneath meanwhile (§4.6). Opened from the title
+/// screen (RunLaunch); run directly with verification flags, it starts a run on its own and saves nothing.
+/// WASD swims (north is up), Space dashes, Shift dives (InputSetup), the mouse aims, F3 toggles the debug map, R
+/// regenerates from the seed field.
+/// Verification flags: --seed=, --cycle=, --depth=, --level=, --at=start|arch|cave|exit|hole|shop|cache|treasure|ambush|mob|boss,
+/// --autopilot, --dive (dives whenever it can), --calm (no creatures), --fire, --pearls=, --hp=, --boss-hp=, --paused, --map, --f3, --no-focus,
+/// --capture=dir --frames=a,b.
 /// </summary>
 public partial class TopDownMain : Node3D
 {
     /// <summary>Every game starts on a random seed (--seed= pins one, for verification).</summary>
     SeedCode _seed = SeedCode.NewRandom();
-    /// <summary>Rooms follow one another through the rift's gateway: room N is level N of this seed (a fresh layout).</summary>
-    int _depth = 1, _room = 1;
+    /// <summary>The level she is on: one hole leads down to the next (LevelPlan.NextOf).</summary>
+    LevelId _id = LevelId.First;
     CombatView _combat = null!;
     BossView _boss = null!;
     BannerView _banner = null!;
@@ -66,11 +68,11 @@ public partial class TopDownMain : Node3D
     PauseMenu _pause = null!;
     PanelContainer _debugPanel = null!;
 
-    // The rift: fade to the splash, generate the next room off the main thread, fade back in.
-    // On death: fade to the death splash, wait for the player, generate a new run's first room, fade back in.
+    // On death: fade to the death splash, wait for the player, generate a new run's first level, fade back in.
+    // (Between levels there is no splash: she dives.)
     enum Transition { None, FadingIn, Loading, Waiting, FadingOut }
     const float FadeSeconds = 0.35f;
-    /// <summary>The splash after the rift waits for Enter or a click once the next room is ready; the death splash
+    /// <summary>The first splash waits for Enter or a click once the level is ready; the death splash
     /// waits first, then builds the new run.</summary>
     bool _deathSplash;
     bool _confirmLatched;
@@ -80,25 +82,41 @@ public partial class TopDownMain : Node3D
     LoadingSplash _splash = null!;
     Transition _transition;
     float _transitionTime;
-    Task<LevelMap>? _nextMap;
-    /// <summary>Seconds spent in the current room (sim time).</summary>
-    float _roomTime;
-    /// <summary>The run's play time so far (sim time: still while paused or between rooms), for the HUD clock.</summary>
+    Task<LevelShape>? _nextMap;
+    /// <summary>Seconds spent on the current level (sim time).</summary>
+    float _levelTime;
+    /// <summary>The run's play time so far (sim time: still while paused or diving), for the HUD clock.</summary>
     float _elapsed;
     bool _fireBlocked;
     bool Paused => _pause.Visible;
 
-    /// <summary>Opened from the title: the run is recorded in the profile and saved at the start of every room.</summary>
+    /// <summary>Opened from the title: the run is recorded in the profile and saved at the start of every level.</summary>
     bool _persist;
     /// <summary>A seed she chose (or a verification seed): such runs never earn achievements.</summary>
     bool _customSeed;
-    /// <summary>A saved run to put her back into, at the start of its room.</summary>
+    /// <summary>A saved run to put her back into, at the start of its level.</summary>
     SuspendedRun? _resume;
     PlaneProfileRecorder _recorder = null!;
 
+    // The level below (DESIGN-TOPDOWN §4.6): made off the main thread as soon as she arrives on a level, then shown
+    // under the hole, drawn only through the shaft until she dives.
+    Task<LevelShape>? _belowTask;
+    LevelView? _below;
+    LevelMap? _belowMap;
+    /// <summary>Where the level below sits under this one: its start right under the hole, a level's drop down.</summary>
+    Vector3 _belowOffset;
+    /// <summary>The absolute position (xz) of the world's origin: each dive moves the world back by the hole's offset.</summary>
+    Vector2 _origin;
+    bool _diving, _diveLatched;
+    float _diveTime;
+    System.Numerics.Vector2 _diveFrom;
+    ReefLook _lookFrom = ReefLook.Shallows, _lookTo = ReefLook.Shallows;
+    /// <summary>The dive, from the gathering stroke to settling on the level below.</summary>
+    const float DiveSeconds = 1.6f;
+
     // Verification mode.
     string? _startAt;
-    bool _autopilot;
+    bool _autopilot, _autoDive, _calm;
     List<System.Numerics.Vector2> _route = new();
     int _routeProgress;
     string? _captureDir;
@@ -136,8 +154,8 @@ public partial class TopDownMain : Node3D
         if (OS.GetCmdlineUserArgs().Contains("--dbg-noshadow"))
             foreach (var l in sun.FindChildren("*", "DirectionalLight3D", true, false)) ((DirectionalLight3D)l).ShadowEnabled = false;
         BuildUi();
-        // From the title: the first room is shaped off the main thread behind the splash.
-        if (_persist) StartFirstRoom();
+        // From the title: the first level is shaped off the main thread behind the splash.
+        if (_persist) StartFirstLevel();
         else Regenerate();
         if (_startPaused) CallDeferred(MethodName.TogglePause);
     }
@@ -148,8 +166,11 @@ public partial class TopDownMain : Node3D
         {
             string Value(string prefix) => arg[prefix.Length..];
             if (arg.StartsWith("--seed=") && SeedCode.TryParse(Value("--seed="), out var seed)) _seed = seed;
-            else if (arg.StartsWith("--depth=") && int.TryParse(Value("--depth="), out int d)) _depth = Math.Clamp(d, 1, 7);
-            else if (arg.StartsWith("--room=") && int.TryParse(Value("--room="), out int r)) _room = Math.Max(1, r);
+            else if (arg.StartsWith("--cycle=") && int.TryParse(Value("--cycle="), out int c)) _id = _id with { Cycle = Math.Max(1, c) };
+            else if (arg.StartsWith("--depth=") && int.TryParse(Value("--depth="), out int d)) _id = _id with { Depth = Math.Clamp(d, 1, LevelPlan.Depths) };
+            else if (arg.StartsWith("--level=") && int.TryParse(Value("--level="), out int l)) _id = _id with { Level = Math.Clamp(l, 1, 5) };
+            else if (arg == "--dive") _autoDive = true;
+            else if (arg == "--calm") _calm = true;
             else if (arg.StartsWith("--at=")) _startAt = Value("--at=");
             else if (arg == "--autopilot") _autopilot = true;
             else if (arg.StartsWith("--boss-hp=") && float.TryParse(Value("--boss-hp="), NumberStyles.Float, CultureInfo.InvariantCulture, out float bhp)) _bossHp = bhp;
@@ -180,8 +201,7 @@ public partial class TopDownMain : Node3D
         {
             _seed = seed;
             _customSeed = saved.CustomSeed;
-            _depth = saved.Depth;
-            _room = saved.Room;
+            _id = new LevelId(Math.Max(1, saved.Cycle), Math.Clamp(saved.Depth, 1, LevelPlan.Depths), Math.Clamp(saved.Level, 1, 5));
             _resume = saved;
             return;
         }
@@ -189,7 +209,7 @@ public partial class TopDownMain : Node3D
         _customSeed = mode == LaunchMode.Seeded;
     }
 
-    /// <summary>Saves the run as it stands at the start of this room (continuing puts her back here).</summary>
+    /// <summary>Saves the run as it stands at the start of this level (continuing puts her back here).</summary>
     void SaveRun()
     {
         if (!_persist || _run is null) return;
@@ -197,8 +217,9 @@ public partial class TopDownMain : Node3D
         {
             Seed = _seed.ToString(),
             CustomSeed = _customSeed,
-            Depth = _depth,
-            Room = _room,
+            Cycle = _id.Cycle,
+            Depth = _id.Depth,
+            Level = _id.Level,
             Items = _run.Items.ToList(),
             Hp = _run.Hp,
             Shells = _run.Shells,
@@ -210,18 +231,26 @@ public partial class TopDownMain : Node3D
         GameSave.Write();
     }
 
-    Task<LevelMap>? _firstMap;
+    Task<LevelShape>? _firstMap;
 
-    void StartFirstRoom()
+    void StartFirstLevel()
     {
         var stats = new List<(string, string)> { ("Seed", _seed.ToString() + (_customSeed ? "  (seeded)" : "")) };
         if (_resume is { } saved) stats.Add(("Carrying", $"{saved.Items.Count} pearls · {saved.Shells} shells · {Mathf.CeilToInt(saved.Hp)} HP"));
-        _splash.Fill(_resume is not null ? "Back into the sea" : "A new dive", stats, $"Depth {_depth} · Room {_room}");
+        _splash.Fill(_resume is not null ? "Back into the sea" : "A new dive", stats, _id.ToString());
         _splash.Modulate = Colors.White;
         _splash.Visible = true;
+        _firstMap = Shape(_id);
+    }
+
+    /// <summary>
+    /// A level made and readied for showing, off the main thread (both steps are pure work on data). The level below is
+    /// made in the <paramref name="background"/>, on one thread, so the game keeps its frame rate.
+    /// </summary>
+    Task<LevelShape> Shape(LevelId id, bool background = false)
+    {
         var streams = new RunStreams(_seed);
-        int depth = _depth, room = _room;
-        _firstMap = Task.Run(() => TopDownGenerator.Generate(streams, depth, room));
+        return Task.Run(() => LevelShape.Prepare(TopDownGenerator.Generate(streams, id, background: background)));
     }
 
     void GoToTitle()
@@ -236,14 +265,15 @@ public partial class TopDownMain : Node3D
 
     void BuildEnvironment()
     {
-        _environment = MakeEnvironment(ReefLook.For(_depth));
+        _environment = MakeEnvironment(ReefLook.For(_id.Depth));
         AddChild(_environment);
     }
 
     /// <summary>The depth's look on the water, the sun and every reef shader.</summary>
-    void ApplyLook()
+    void ApplyLook() => ApplyLook(ReefLook.For(_id.Depth));
+
+    void ApplyLook(ReefLook look)
     {
-        var look = ReefLook.For(_depth);
         look.Apply();
         look.ApplyTo(_environment.Environment);
         _sunLight.Configure(look.Sun, look.SunEnergy);
@@ -307,11 +337,11 @@ public partial class TopDownMain : Node3D
             _recorder.RunAbandoned(_elapsed);
             _seed = SeedCode.NewRandom();
             _customSeed = false;
-            _room = 1;
+            _id = LevelId.First;
             Regenerate();
             Say("New run");
         };
-        // The run was saved at the start of this room: she resumes there.
+        // The run was saved at the start of this level: she resumes there.
         _pause.QuitPressed += GoToTitle;
 
         // The debug panel (seed field, numbers, controls): hidden unless F3 is on.
@@ -333,7 +363,7 @@ public partial class TopDownMain : Node3D
         random.Pressed += () =>
         {
             _seed = SeedCode.NewRandom();
-            _room = 1;
+            _id = LevelId.First;
             _seedField.Text = _seed.ToString();
             Regenerate();
         };
@@ -365,19 +395,41 @@ public partial class TopDownMain : Node3D
                 _info.Text = "Not a seed: 8 characters from A–Z and 2–9 (no 0, O, 1 or I)";
                 return;
             }
-            if (!parsed.Equals(_seed)) _room = 1;
+            if (!parsed.Equals(_seed)) _id = LevelId.First;
             _seed = parsed;
         }
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        var map = TopDownGenerator.Generate(new RunStreams(_seed), _depth, _room);
-        ApplyLevel(map, keepRun, watch.ElapsedMilliseconds);
+        var shape = LevelShape.Prepare(TopDownGenerator.Generate(new RunStreams(_seed), _id));
+        ShowLevel(shape, keepRun, watch.ElapsedMilliseconds);
     }
 
-    /// <summary>Shows a generated level and puts Clementine at its start (keeping her run when she came through the rift).</summary>
-    void ApplyLevel(LevelMap map, bool keepRun, long ms)
+    /// <summary>
+    /// A level shown afresh (a new run, a resumed one, a regenerated one): the world back at the origin, no level below
+    /// until it is made.
+    /// </summary>
+    void ShowLevel(LevelShape shape, bool keepRun, long ms)
+    {
+        DropBelow();
+        _origin = Vector2.Zero;
+        _camera.SetWorldOrigin(_origin);
+        _level.Show(shape);
+        _level.Place(Vector3.Zero, _origin);
+        EnterLevel(shape.Map, keepRun, ms);
+        // A verification start applies to the first level only (later levels begin at their start).
+        PlaceAt(_startAt);
+        _startAt = null;
+        _camera.Track(Focus(1f), 0f, snap: true);
+        Route();
+    }
+
+    /// <summary>
+    /// She is on a level (shown already): its world, its places on the maps, the HUD, the save; and the level below starts
+    /// being made.
+    /// </summary>
+    void EnterLevel(LevelMap map, bool keepRun, long ms, System.Numerics.Vector2? arriveAt = null)
     {
         _map = map;
-        _roomTime = 0f;
+        _levelTime = 0f;
         ApplyLook();
         if (!keepRun || _run is null)
         {
@@ -390,7 +442,7 @@ public partial class TopDownMain : Node3D
             bool continuing = _resume is not null;
             if (_resume is { } saved)
             {
-                // Back where the save left her: what she carried into this room, and the run's totals so far.
+                // Back where the save left her: what she carried onto this level, and the run's totals so far.
                 foreach (string id in saved.Items)
                     if (_catalog?.Contains(id) == true) _run.Add(id);
                 _run.Hp = Mathf.Min(saved.Hp, _run.MaxHp);
@@ -402,12 +454,18 @@ public partial class TopDownMain : Node3D
             }
             _recorder.StartRun(_seed.ToString(), _customSeed, _run.Items, continuing);
         }
-        _run.Room = _room;
+        _run.Level = _id;
         _world = new PlaneWorld(_map, _tuning, _run);
-        _recorder.EnterRoom(_world, _depth, _room);
+        if (arriveAt is { } at) _world.Player.Position = _world.Player.PrevPosition = at;
+        if (_calm)
+        {
+            _world.Mobs.Clear();
+            _world.Ambushes.Clear();
+        }
+        _recorder.EnterLevel(_world, _id);
         SaveRun();
-        _level.Show(_map);
         _combat.Show(_world, _catalog);
+        _combat.Visible = _boss.Visible = true;
         _boss.Show(_world);
         if (_bossHp is { } bossHp && _world.Boss is { } queen) queen.Hp = bossHp;
         _debugMap.SetMap(_map);
@@ -423,13 +481,41 @@ public partial class TopDownMain : Node3D
         _fullMap.Seen = _fog;
         _fullMap.Visited = _visited;
         _seedField.Text = _seed.ToString();
-        PlaceAt(_startAt);
-        // A verification start applies to the first room only (later rooms begin at their start).
-        _startAt = null;
-        _camera.Track(Focus(1f), 0f, snap: true);
-        _route = _autopilot ? LevelValidator.ShortestPath(_map, _world.Player.Position, _map.Rift.Position, clearance: 1f) : new();
+        GD.Print($"Top-down level {_seed} {_id}: attempt {_map.Attempt + 1}, {ms} ms, {_map.Pois.Count} POIs{(_map.HasBoss ? ", boss" : "")}, {_map.Canopies.Count} canopy pieces, {_map.Decor.Count} decor");
+        _belowTask = Shape(LevelPlan.NextOf(_seed, _id), background: true);
+    }
+
+    /// <summary>Verification: the autopilot's way to the exit.</summary>
+    void Route()
+    {
+        _route = _autopilot ? LevelValidator.ShortestPath(_map, _world.Player.Position, _map.Exit.Position, clearance: 1f) : new();
         _routeProgress = 0;
-        GD.Print($"Top-down level {_seed} depth {_depth} room {_room}: attempt {_map.Attempt + 1}, {ms} ms, {_map.Pois.Count} POIs, {_map.Canopies.Count} canopy pieces, {_map.Decor.Count} decor");
+    }
+
+    /// <summary>Forgets the level below (a new run, a regenerated level).</summary>
+    void DropBelow()
+    {
+        _belowTask = null;
+        _below?.QueueFree();
+        _below = null;
+        _belowMap = null;
+    }
+
+    /// <summary>
+    /// The level below is ready: shown under this one, its start right under the hole and a level's drop down, drawn only
+    /// through the shaft (under a boss level's Crack, the Crack's glow fills it until the boss is freed).
+    /// </summary>
+    void ShowBelow(LevelShape shape)
+    {
+        _belowMap = shape.Map;
+        _below = new LevelView();
+        AddChild(_below);
+        _below.Show(shape, below: true);
+        var hole = _map.Exit.Position;
+        var start = shape.Map.Start.Position;
+        _belowOffset = new Vector3(hole.X - start.X, -LevelMap.LevelDrop, hole.Y - start.Y);
+        _below.Place(_belowOffset, _origin + new Vector2(_belowOffset.X, _belowOffset.Z));
+        _below.SetPortal(new Vector2(hole.X, hole.Y), Stamp.Pin, 2);
     }
 
     /// <summary>Verification: start somewhere interesting.</summary>
@@ -439,14 +525,14 @@ public partial class TopDownMain : Node3D
         {
             "arch" => _map.Canopies.Where(c => c.Kind == CanopyKind.Arch).Select(c => (System.Numerics.Vector2?)c.Center).FirstOrDefault(),
             "cave" => _map.Caves.Select(c => (System.Numerics.Vector2?)(c.Mouth + c.Facing * 5f)).FirstOrDefault(),
-            "rift" => _map.Rift.Position,
-            "gate" => _map.Rift.Position + new System.Numerics.Vector2(0f, 6f),
+            "exit" => _map.Exit.Position + new System.Numerics.Vector2(0f, _map.Exit.Radius + 3f),
+            "hole" => _map.Exit.Position,
             // Just outside Queen Clam's arena, in water that leads in.
             "boss" => Enumerable.Range(0, 24).Select(i => i * Mathf.Tau / 24f)
-                .Select(a => (System.Numerics.Vector2?)(_map.Rift.Position + new System.Numerics.Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (_map.Rift.Radius + 2.5f)))
-                .FirstOrDefault(q => q is { } v && _world.Clear(v, 0.8f) && _world.LineOfSight(v, _map.Rift.Position)),
+                .Select(a => (System.Numerics.Vector2?)(_map.Exit.Position + new System.Numerics.Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (_map.Exit.Radius + 2.5f)))
+                .FirstOrDefault(q => q is { } v && _world.Clear(v, 0.8f) && _world.LineOfSight(v, _map.Exit.Position)),
             "shop" => _map.Caves.Where(c => _map.Pois[c.Poi].Kind == PoiKind.Shop).Select(c => (System.Numerics.Vector2?)(c.Mouth - c.Facing * 1.5f)).FirstOrDefault(),
-            "cache" => _map.Pois.Where(p => p.Kind == PoiKind.ItemSpawn).Select(p => (System.Numerics.Vector2?)p.Position).FirstOrDefault(),
+            "cache" => _map.Pois.Where(p => p.Kind == PoiKind.ShellCache).Select(p => (System.Numerics.Vector2?)p.Position).FirstOrDefault(),
             "ambush" => _map.Pois.Where(p => p.Kind == PoiKind.Ambush).Select(p => (System.Numerics.Vector2?)p.Position).FirstOrDefault(),
             "treasure" => _map.Caves.Where(c => _map.Pois[c.Poi].Kind == PoiKind.TreasureCave).Select(c => (System.Numerics.Vector2?)(c.Mouth - c.Facing * 2.5f)).FirstOrDefault(),
             "mob" => _world.Mobs.Select(m => (System.Numerics.Vector2?)(m.Position + new System.Numerics.Vector2(0f, 7f))).FirstOrDefault(q => q is { } v && _world.Clear(v, 0.6f)),
@@ -472,7 +558,7 @@ public partial class TopDownMain : Node3D
                 if (first.IsFaulted) GD.PushError(first.Exception?.ToString());
                 else
                 {
-                    ApplyLevel(first.Result, keepRun: false, 0);
+                    ShowLevel(first.Result, keepRun: false, 0);
                     _transition = Transition.FadingOut;
                     _transitionTime = 0f;
                 }
@@ -480,6 +566,19 @@ public partial class TopDownMain : Node3D
             return;
         }
         float dt = (float)delta;
+        // The level below, once made, goes under the hole.
+        if (_belowTask is { IsCompleted: true } below && _transition == Transition.None)
+        {
+            _belowTask = null;
+            if (below.IsFaulted) GD.PushError(below.Exception?.ToString());
+            else ShowBelow(below.Result);
+        }
+        if (_diving)
+        {
+            StepDive(dt);
+            Capture();
+            return;
+        }
         if (_transition != Transition.None)
         {
             StepTransition(dt);
@@ -501,19 +600,19 @@ public partial class TopDownMain : Node3D
 
         _accumulator += delta;
         int steps = 0;
-        bool gateway = false;
-        while (_accumulator >= PlaneWorld.Dt && steps < 8 && !gateway)
+        bool dived = false;
+        while (_accumulator >= PlaneWorld.Dt && steps < 8 && !dived)
         {
             _world.Step(ReadInput());
             _recorder.Observe(_world);
-            _roomTime += PlaneWorld.Dt;
+            _levelTime += PlaneWorld.Dt;
             _elapsed += PlaneWorld.Dt;
             _accumulator -= PlaneWorld.Dt;
             steps++;
             foreach (var e in _world.Events)
             {
-                if (e.Type == PlaneEventType.GatewayEntered) gateway = true;
-                else if (e.Type == PlaneEventType.PlayerDefeated) gateway = false;
+                if (e.Type == PlaneEventType.Dived) dived = true;
+                else if (e.Type == PlaneEventType.PlayerDefeated) dived = false;
                 else if (e.Type == PlaneEventType.PearlCollected && _world.LastPearl is { } pearl) _hud.ShowPearl(pearl);
                 else if (e.Type == PlaneEventType.ShellCollected) _hud.PulseShells();
                 else if (e.Type == PlaneEventType.CannotAfford) Say("Not enough shells");
@@ -525,14 +624,14 @@ public partial class TopDownMain : Node3D
                 else if (e.Type == PlaneEventType.BossFreed)
                 {
                     _camera.Shake(0.4f);
-                    Say($"{PlaneBossTuning.Name} is freed! The rift is open");
+                    Say($"{PlaneBossTuning.Name} is freed! The Crack is open");
                 }
             }
         }
-        // Through the gateway: the splash fades in over the room she leaves; the next one is generated behind it.
-        if (gateway)
+        // Down the shaft: the dive takes over until she is on the level below.
+        if (dived)
         {
-            BeginRift();
+            BeginDive();
             return;
         }
         // Out of HP: the run is over.
@@ -566,7 +665,7 @@ public partial class TopDownMain : Node3D
             .OrderBy(poi => System.Numerics.Vector2.Distance(poi.Position, p.Position)).FirstOrDefault();
         // The start needs no name under the map.
         bool named = inside is not null && inside.Kind != PoiKind.Start;
-        _minimap.ShowPlace(named ? LevelView.PlaceName(inside!.Kind) : null, named ? LevelView.PoiColor(inside!.Kind) : Colors.White);
+        _minimap.ShowPlace(named ? LevelView.PlaceName(_map, inside!.Kind) : null, named ? LevelView.PoiColor(inside!.Kind) : Colors.White);
         if (inside is not null) _visited.Add(_map.Pois.IndexOf(inside));
         float side = Mathf.Min(GetViewport().GetVisibleRect().Size.X, GetViewport().GetVisibleRect().Size.Y) - 80f;
         _fullMap.Size = new Vector2(side, side);
@@ -574,42 +673,116 @@ public partial class TopDownMain : Node3D
         _fullMap.Player = p.Position;
         if (p.Velocity.LengthSquared() > 0.04f) _fullMap.PlayerHeading = p.Velocity;
         int left = _world.Mobs.Count(m => m.Alive);
-        _info.Text = $"Room {_room} · mobs {left}/{_world.Mobs.Count} · pearls {_run!.Items.Count}   attempt {_map.Attempt + 1}   pos {p.Position.X:0.0}, {p.Position.Y:0.0}   " +
+        _info.Text = $"{_id} · mobs {left}/{_world.Mobs.Count} · pearls {_run!.Items.Count}   attempt {_map.Attempt + 1}   pos {p.Position.X:0.0}, {p.Position.Y:0.0}   " +
                      $"{Engine.GetFramesPerSecond():0} FPS" + (_statusTimer > 0f ? $"   {_status}" : "") +
-                     "\nWASD swim · Space dash · hold the mouse or arrows to shoot · Tab map · Esc pause · F3 debug · R regenerate · the rift's gateway leads on";
+                     "\nWASD swim · Space dash · hold the mouse or arrows to shoot · Shift over the shaft dives · Tab map · Esc pause · F3 debug · R regenerate";
         Capture();
     }
 
-    void BeginRift()
+    // ───────────────────────── the dive (DESIGN-TOPDOWN §4.6) ─────────────────────────
+
+    /// <summary>She dives: the level is cleared, the sim stops, and the dive plays out over the level below.</summary>
+    void BeginDive()
     {
         _accumulator = 0;
-        var st = _world.Stats;
-        int places = _map.Pois.Count;
-        var time = TimeSpan.FromSeconds(_roomTime);
-        var stats = new List<(string, string)>
-        {
-            ("Time", $"{(int)time.TotalMinutes}:{time.Seconds:00}"),
-            ("Foes defeated", $"{st.MobsDefeated} / {_world.Mobs.Count}"),
-            ("Shells collected", $"{st.ShellsCollected}" + (st.ShellsSpent > 0 ? $"  (spent {st.ShellsSpent})" : "")),
-            ("Pearls found", $"{st.PearlsFound}"),
-            ("Places visited", $"{_visited.Count} / {places}"),
-            ("Damage taken", $"{st.DamageTaken:0}"),
-            ("Carrying", $"{_run!.Items.Count} pearls · {_run.Shells} shells · {Mathf.CeilToInt(_world.Player.Hp)} / {Mathf.RoundToInt(_run.MaxHp)} HP"),
-        };
-        _recorder.RoomCleared(_world, _roomTime);
+        _recorder.LevelCleared(_world, _levelTime);
         AddToRun();
-        _room++;
-        _deathSplash = false;
-        _splash.Fill($"Room {_room - 1} cleared", stats, $"Into the rift — Depth {_depth} · Room {_room}");
-        OpenSplash();
+        _diving = true;
+        _diveTime = 0f;
+        _diveFrom = _world.Player.Position;
+        var next = LevelPlan.NextOf(_seed, _id);
+        _lookFrom = ReefLook.For(_id.Depth);
+        _lookTo = ReefLook.For(next.Depth);
+        _bell.Kick();
+        _hud.Diving = true;
+        // The level's life stays behind: only she goes down.
+        _combat.Visible = _boss.Visible = false;
+        _banner.Visible = false;
     }
 
-    /// <summary>Adds the room she is leaving to the run's totals.</summary>
+    static float Ease(float t) => Mathf.SmoothStep(0f, 1f, Mathf.Clamp(t, 0f, 1f));
+
+    /// <summary>
+    /// One frame of the dive. She gathers (a flare), then a hard stroke turns her head-first and she sinks a level's drop
+    /// down the shaft in pulses, then rights herself and settles. The camera falls with her and pulls in; the level above
+    /// opens like an iris from the hole outward, revealing the level below; the focus, the sea surface and the water
+    /// sink with her; through the Crack, the next depth's look blends in. If the level below is not made yet, she holds
+    /// at the lip of the shaft until it is.
+    /// </summary>
+    void StepDive(float dt)
+    {
+        _diveTime += dt;
+        if (_below is null && _diveTime > 0.25f) _diveTime = 0.25f;
+        float t = _diveTime, k = Mathf.Clamp(t / DiveSeconds, 0f, 1f);
+        // The descent: in three pulses, each a quick lurch then a glide.
+        float sink = Ease((t - 0.25f) / 0.95f);
+        sink = Mathf.Clamp(sink + 0.04f * Mathf.Sin(Mathf.Clamp((t - 0.25f) / 0.95f, 0f, 1f) * Mathf.Pi * 3f), 0f, 1f);
+        float drop = sink * LevelMap.LevelDrop;
+        // A small rise as she gathers, before the stroke.
+        float gather = Mathf.Sin(Mathf.Clamp(t / 0.25f, 0f, 1f) * Mathf.Pi) * 0.35f;
+        _bell.DiveDepth = drop - gather;
+        _bell.DiveTurn = Ease((t - 0.2f) / 0.3f) * (1f - Ease((t - 1.1f) / 0.4f));
+        _bell.Sync(_world, 1f, dt);
+
+        var focus = new Vector3(_diveFrom.X, LevelMap.SwimBand - drop, _diveFrom.Y);
+        _camera.Zoom = 1f - 0.35f * Mathf.Sin(Mathf.Pi * k);
+        _camera.Track(focus, dt);
+        _camera.SetSwimLevel(-drop);
+        var look = _lookFrom == _lookTo ? _lookFrom : ReefLook.Blend(_lookFrom, _lookTo, sink);
+        if (_lookFrom != _lookTo) ApplyLook(look);
+        look.SetDrop(drop);
+        _snow.Tick(dt, focus + Vector3.Up * 6f, _camera.Camera.GlobalBasis);
+
+        // The iris: the level above is cut away from the hole outward; the level below shows inside the same ring.
+        var hole = new Vector2(_map.Exit.Position.X, _map.Exit.Position.Y);
+        float radius = Mathf.Lerp(6f, 150f, Mathf.Pow(Ease((t - 0.35f) / 0.9f), 2f));
+        _level.SetPortal(hole, radius, 1);
+        _below?.SetPortal(hole, Mathf.Max(radius, Stamp.Pin), 2);
+        _hud.Elapsed = _elapsed;
+        _hud.Track(_world, _catalog, dt);
+        if (_diveTime >= DiveSeconds && _below is not null) FinishDive();
+    }
+
+    /// <summary>
+    /// She is down: the level below becomes the level, and the whole world (camera, specks, her strands) moves back by the
+    /// level's offset in the same frame, so nothing on screen moves. Its patterns are drawn from its absolute origin, so
+    /// they do not move either.
+    /// </summary>
+    void FinishDive()
+    {
+        var offset = _belowOffset;
+        var shift = -offset;
+        var arrived = _diveFrom - new System.Numerics.Vector2(offset.X, offset.Z);
+        _level.QueueFree();
+        _level = _below!;
+        _below = null;
+        var map = _belowMap!;
+        _belowMap = null;
+        _origin += new Vector2(offset.X, offset.Z);
+        _level.Promote(_origin);
+        _camera.Shift(shift);
+        _camera.SetWorldOrigin(_origin);
+        _camera.SetSwimLevel(0f);
+        _camera.Zoom = 1f;
+        _snow.Shift(shift);
+        _bell.Shift(shift);
+        _bell.DiveDepth = 0f;
+        _bell.DiveTurn = 0f;
+        _banner.Visible = true;
+        _hud.Diving = false;
+        _diving = false;
+        _id = LevelPlan.NextOf(_seed, _id);
+        EnterLevel(map, keepRun: true, 0, arrived);
+        Route();
+        Say(_id.Level == 1 ? $"{ReefLook.For(_id.Depth).Name} · {_id}" : _id.ToString());
+    }
+
+    /// <summary>Adds the level she is leaving to the run's totals.</summary>
     void AddToRun()
     {
         _runMobs += _world.Stats.MobsDefeated;
         _runShells += _world.Stats.ShellsCollected;
-        _runTime += _roomTime;
+        _runTime += _levelTime;
     }
 
     void ResetRunTotals()
@@ -634,8 +807,7 @@ public partial class TopDownMain : Node3D
         var time = TimeSpan.FromSeconds(_runTime);
         var stats = new List<(string, string)>
         {
-            ("Reached", $"Depth {_depth} · Room {_room}"),
-            ("Rooms cleared", $"{_room - 1}"),
+            ("Reached", _id.ToString()),
             ("Time", $"{(int)time.TotalMinutes}:{time.Seconds:00}"),
             ("Foes defeated", $"{_runMobs}"),
             ("Shells collected", $"{_runShells}"),
@@ -666,11 +838,10 @@ public partial class TopDownMain : Node3D
         return pressed;
     }
 
-    void StartLoading(int room)
+    void StartLoading()
     {
-        var streams = new RunStreams(_seed);
-        int depth = _depth;
-        _nextMap = Task.Run(() => TopDownGenerator.Generate(streams, depth, room));
+        DropBelow();
+        _nextMap = Shape(_id);
         _transition = Transition.Loading;
         _transitionTime = 0f;
     }
@@ -692,14 +863,14 @@ public partial class TopDownMain : Node3D
                     _transitionTime = 0f;
                 }
                 // The generator is pure and deterministic: it runs off the main thread while the splash shows.
-                else StartLoading(_room);
+                else StartLoading();
                 break;
             case Transition.Loading:
                 if (_nextMap is null || !_nextMap.IsCompleted) return;
                 var task = _nextMap;
                 _nextMap = null;
                 if (task.IsFaulted) GD.PushError(task.Exception?.ToString());
-                else ApplyLevel(task.Result, keepRun: !_deathSplash, (long)(_transitionTime * 1000f));
+                else ShowLevel(task.Result, keepRun: !_deathSplash, (long)(_transitionTime * 1000f));
                 if (_deathSplash)
                 {
                     // A new run: straight in.
@@ -708,7 +879,7 @@ public partial class TopDownMain : Node3D
                 }
                 else
                 {
-                    // The next room is ready: wait until the player has read the page.
+                    // The level is ready: wait until the player has read the page.
                     _splash.Prompt("Press Enter or click to continue");
                     _confirmLatched = true;
                     _transition = Transition.Waiting;
@@ -726,17 +897,17 @@ public partial class TopDownMain : Node3D
                 _fireBlocked = true;
                 if (_deathSplash)
                 {
-                    // A clean new game: new seed, room 1, no pearls or shells.
+                    // A clean new game: new seed, the first level, no pearls or shells.
                     _seed = SeedCode.NewRandom();
                     _customSeed = false;
-                    _room = 1;
+                    _id = LevelId.First;
                     ResetRunTotals();
                     _splash.Working("Shaping a new reef");
-                    StartLoading(_room);
+                    StartLoading();
                 }
                 else
                 {
-                    Say($"Depth {_depth} · Room {_room}");
+                    Say(_id.ToString());
                     _transition = Transition.FadingOut;
                     _transitionTime = 0f;
                 }
@@ -760,7 +931,7 @@ public partial class TopDownMain : Node3D
     void TogglePause()
     {
         if (Paused) Resume();
-        else _pause.Open(_world.Run, _catalog, _seed.ToString(), _room, _world.Player.Hp);
+        else _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp);
     }
 
     void Resume()
@@ -805,6 +976,8 @@ public partial class TopDownMain : Node3D
                 if (System.Numerics.Vector2.Distance(_route[i], pos) < System.Numerics.Vector2.Distance(_route[_routeProgress], pos)) _routeProgress = i;
             var to = _route[Math.Min(_route.Count - 1, _routeProgress + 2)] - pos;
             if (to.Length() > 0.3f) input.Move = System.Numerics.Vector2.Normalize(to);
+            input.Dive = _autoDive && _world.CanDive;
+            AutoFire(ref input);
             return input;
         }
         if (_seedField.HasFocus()) return input;
@@ -818,18 +991,10 @@ public partial class TopDownMain : Node3D
         bool dash = Input.IsActionPressed(InputSetup.Dash);
         input.Dash = dash && !_dashLatched;
         _dashLatched = dash;
-        if (_autoFire && _world.Boss is { Stage: BossStage.Fight } queen)
-        {
-            input.Aim = System.Numerics.Vector2.Normalize(queen.Position - _world.Player.Position);
-            input.Fire = true;
-            return input;
-        }
-        if (_autoFire && _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, _world.Player.Position)).FirstOrDefault() is { } target)
-        {
-            input.Aim = System.Numerics.Vector2.Normalize(target.Position - _world.Player.Position);
-            input.Fire = true;
-            return input;
-        }
+        bool dive = Input.IsActionPressed(InputSetup.Dive);
+        input.Dive = dive && !_diveLatched || _autoDive && _world.CanDive;
+        _diveLatched = dive;
+        if (AutoFire(ref input)) return input;
         // Shooting: arrow keys aim and fire; otherwise the held left mouse button fires toward the pointer.
         var arrows = System.Numerics.Vector2.Zero;
         if (Input.IsPhysicalKeyPressed(Key.Up)) arrows.Y -= 1f;
@@ -849,6 +1014,19 @@ public partial class TopDownMain : Node3D
             input.Fire = held && !_fireBlocked;
         }
         return input;
+    }
+
+    /// <summary>Verification: fire at the boss in her fight, else at the nearest mob.</summary>
+    bool AutoFire(ref PlaneInput input)
+    {
+        if (!_autoFire) return false;
+        var from = _world.Player.Position;
+        System.Numerics.Vector2? target = _world.Boss is { Stage: BossStage.Fight } queen ? queen.Position
+            : _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, from)).Select(m => (System.Numerics.Vector2?)m.Position).FirstOrDefault();
+        if (target is not { } at || System.Numerics.Vector2.DistanceSquared(at, from) < 1e-4f) return false;
+        input.Aim = System.Numerics.Vector2.Normalize(at - from);
+        input.Fire = true;
+        return true;
     }
 
     /// <summary>Mouse aim on the plane: from Clementine toward the point under the cursor on the swim band.</summary>

@@ -68,12 +68,12 @@ public sealed partial class PlaneWorld
     /// <summary>Shell caches at the item cache and secret rooms, scattered round each place's middle.</summary>
     void PlaceShells()
     {
-        _drops = new Rng(Map.Seed ^ 0x5E115UL ^ ((ulong)Map.Reef << 24) ^ ((ulong)Map.Attempt << 48));
+        _drops = new Rng(Map.Seed ^ 0x5E115UL ^ ((ulong)Map.Level << 24) ^ ((ulong)Map.Depth << 32) ^ ((ulong)Map.Attempt << 48));
         foreach (var poi in Map.Pois)
         {
             (int min, int max) = poi.Kind switch
             {
-                PoiKind.ItemSpawn => (PlaneEconomyTuning.CacheMin, PlaneEconomyTuning.CacheMax),
+                PoiKind.ShellCache => (PlaneEconomyTuning.CacheMin, PlaneEconomyTuning.CacheMax),
                 PoiKind.Secret => (PlaneEconomyTuning.SecretMin, PlaneEconomyTuning.SecretMax),
                 _ => (0, 0),
             };
@@ -94,7 +94,7 @@ public sealed partial class PlaneWorld
         if (shop is null) return;
         Vector2 facing = shop.Cave >= 0 ? Map.Caves[shop.Cave].Facing : Vector2.UnitY;
         Vector2 side = new(-facing.Y, facing.X);
-        var rng = new Rng(Map.Seed ^ 0x5409UL ^ ((ulong)Map.Reef << 28) ^ ((ulong)Map.Attempt << 50));
+        var rng = new Rng(Map.Seed ^ 0x5409UL ^ ((ulong)Map.Level << 28) ^ ((ulong)Map.Depth << 36) ^ ((ulong)Map.Attempt << 50));
         var offer = PlaneRun.ShotPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
         var items = new List<ShopStand>();
         for (int i = 0; i < PlaneEconomyTuning.PearlsForSale && offer.Count > 0; i++)

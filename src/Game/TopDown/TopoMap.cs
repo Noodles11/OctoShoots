@@ -206,12 +206,12 @@ public partial class TopoMap : Control
                 DrawString(font, p + new Vector2(-4f, 5f), "?", HorizontalAlignment.Left, -1, 14, Ink);
                 continue;
             }
-            if (poi.Kind == PoiKind.Rift && ShowDetail)
+            if (poi.Kind == PoiKind.Exit && ShowDetail)
             {
                 DrawCircle(p, poi.Radius * ppm, new Color(col, 0.18f));
                 DrawArc(p, poi.Radius * ppm, 0f, Mathf.Tau, 48, col, 2f, true);
             }
-            float r = poi.Kind is PoiKind.Rift or PoiKind.Start ? 6f : 4.5f;
+            float r = poi.Kind is PoiKind.Exit or PoiKind.Start ? 6f : 4.5f;
             DrawCircle(p, r + 1.2f, Ink);
             DrawCircle(p, r, col);
         }
@@ -256,7 +256,7 @@ public partial class TopoMap : Control
     {
         var rows = new (PoiKind Kind, string Name)[]
         {
-            (PoiKind.Start, "Start"), (PoiKind.Rift, "The Crack"), (PoiKind.ItemSpawn, "Item cache"), (PoiKind.Shop, "Shop"),
+            (PoiKind.Start, "Start"), (PoiKind.Exit, "Way down"), (PoiKind.ShellCache, "Shell cache"), (PoiKind.Shop, "Shop"),
             (PoiKind.TreasureCave, "Treasure"), (PoiKind.CurseDen, "Curse den"), (PoiKind.Secret, "Secret"), (PoiKind.Ambush, "Ambush"),
         };
         var at = new Vector2(Size.X - 124f, Size.Y - rows.Length * 16f - 14f);

@@ -80,6 +80,12 @@ public partial class MarineSnow : Node3D
         }
     }
 
+    /// <summary>Moves every speck with the world (the dive moves the new level back to the origin).</summary>
+    public void Shift(Vector3 by)
+    {
+        for (int i = 0; i < Count; i++) _positions[i] += by;
+    }
+
     Vector3 Wrap(Vector3 d) => new(WrapAxis(d.X, Half.X), WrapAxis(d.Y, Half.Y), WrapAxis(d.Z, Half.Z));
 
     static float WrapAxis(float v, float half) => Mathf.PosMod(v + half, 2f * half) - half;

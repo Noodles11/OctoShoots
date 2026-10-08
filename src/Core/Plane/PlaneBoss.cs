@@ -86,16 +86,18 @@ public sealed partial class PlaneWorld
 
     /// <summary>While the battle runs the arena is sealed: she cannot leave it, and mobs and their shots cannot come in.</summary>
     public bool ArenaSealed { get; private set; }
-    public Vector2 ArenaCenter => Map.Rift.Position;
-    public float ArenaRadius => Map.Rift.Radius;
+    public Vector2 ArenaCenter => Map.Exit.Position;
+    public float ArenaRadius => Map.Exit.Radius;
 
     Rng _bossRng = null!;
 
+    /// <summary>Only a boss level has her: she waits on the Crack, which stays shut until she is freed.</summary>
     void PlaceBoss()
     {
+        if (!Map.HasBoss) return;
         Boss = new PlaneBoss { Position = ArenaCenter };
-        GatewayOpen = false;
-        _bossRng = new Rng(Map.Seed ^ 0xB055C1A3UL ^ ((ulong)Map.Reef << 24) ^ ((ulong)Map.Attempt << 50));
+        ExitOpen = false;
+        _bossRng = new Rng(Map.Seed ^ 0xB055C1A3UL ^ ((ulong)Map.Level << 24) ^ ((ulong)Map.Depth << 32) ^ ((ulong)Map.Attempt << 50));
     }
 
     /// <summary>True when the barrier lets a circle stand here.</summary>
@@ -232,11 +234,11 @@ public sealed partial class PlaneWorld
         Events.Add(new PlaneEvent(PlaneEventType.BossLanded, boss.Position, dir));
     }
 
-    /// <summary>Freed: the arena opens, her pearl floats down and the gateway opens.</summary>
+    /// <summary>Freed: the arena opens, her pearl floats down and the Crack opens.</summary>
     void Release(PlaneBoss boss)
     {
         ArenaSealed = false;
-        GatewayOpen = true;
+        ExitOpen = true;
         var offer = PlaneRun.ShotPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id || q.Taken)).ToList();
         var boss_ = offer.Where(id => Run.Catalog!.TryGet(id, out var item) && item.Pools.Contains("boss")).ToList();
         var pick = boss_.Count > 0 ? boss_ : offer;

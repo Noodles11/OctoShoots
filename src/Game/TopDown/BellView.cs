@@ -107,6 +107,34 @@ public partial class BellView : Node3D
         };
     }
 
+    /// <summary>The dive (DESIGN-TOPDOWN §4.6): how far below her swim plane she has sunk, and how far she has turned
+    /// apex-down (0 upright, 1 head-first).</summary>
+    public float DiveDepth { get; set; }
+    public float DiveTurn { get; set; }
+
+    /// <summary>A hard stroke now (the dive's first contraction).</summary>
+    public void Kick()
+    {
+        _phase = 0f;
+        _amp = 1f;
+    }
+
+    /// <summary>Moves her with the world (the dive moves the new level back to the origin): her trailing strands too.</summary>
+    public void Shift(Vector3 by)
+    {
+        foreach (var s in _strands)
+        {
+            for (int i = 0; i < s.Pos.Length; i++)
+            {
+                s.Pos[i] += by;
+                s.Prev[i] += by;
+            }
+            s.Anchor += by;
+            s.LastAnchor += by;
+        }
+        _lastCentre += by;
+    }
+
     public void Sync(PlaneWorld world, float alpha, float dt)
     {
         _time += dt;
@@ -124,7 +152,7 @@ public partial class BellView : Node3D
         _lastDash = p.DashTimer;
         _lastHurt = p.HurtTimer;
         if ((jet || dash) && _phase > 0.3f) _phase = 0f;
-        bool burst = p.JetTimer > 0f || p.IsDashing;
+        bool burst = p.JetTimer > 0f || p.IsDashing || DiveDepth > 0f;
         float ampTarget = burst ? 1f : 0.3f + 0.55f * Mathf.Min(pace, 1f);
         _amp = Mathf.Lerp(_amp, ampTarget, 1f - Mathf.Exp(-4f * h));
         _phase = Mathf.PosMod(_phase + h * (burst ? 1.8f : 0.42f + 0.95f * Mathf.Min(pace, 1.3f)), 1f);
@@ -145,11 +173,13 @@ public partial class BellView : Node3D
         _idle = Mathf.MoveToward(_idle, speed < 0.6f ? 1f : 0f, h * 1.2f);
         float ease = _idle * _idle * (3f - 2f * _idle);
         float bob = 0.5f * Mathf.Sin(_time * 1.1f) * ease + 0.06f * _pulse;
-        Position = new Vector3(at.X, LevelMap.SwimBand + bob, at.Y);
+        Position = new Vector3(at.X, LevelMap.SwimBand + bob * (1f - DiveTurn) - DiveDepth, at.Y);
         _spin += h * 0.08f;
         float lean = _lean.Length();
         var tilt = lean > 1e-4f ? new Basis(new Vector3(_lean.Y, 0f, -_lean.X) / lean, lean) : Basis.Identity;
         _body.Basis = tilt * new Basis(Vector3.Up, _spin);
+        // Diving, she turns head-first (apex down), leaning south so the camera sees her turn.
+        if (DiveTurn > 0f) _body.Basis = new Basis(Vector3.Right, -DiveTurn * Mathf.Pi * 0.85f) * _body.Basis;
 
         _bellMaterial.SetShaderParameter("pulse", _pulse);
         _bellMaterial.SetShaderParameter("wave", _phase < 0.55f ? _phase / 0.55f : 1.3f);

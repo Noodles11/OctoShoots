@@ -8,8 +8,8 @@ using OctoShoots.Core.Plane;
 namespace OctoShoots.Game.TopDown;
 
 /// <summary>
-/// Placeholder combat on screen: the shooting-dot mobs, everyone's shots, and the gateway in the rift's arena to the
-/// next room (bright and turning while open; dim when closed, as it will be until the boss is cleared).
+/// Placeholder combat on screen: the shooting-dot mobs, everyone's shots, pearls and the shop's stands. (The way on is
+/// the level's shaft, drawn by the level itself.)
 /// </summary>
 public partial class CombatView : Node3D
 {
@@ -24,10 +24,8 @@ public partial class CombatView : Node3D
     static ImageTexture? _tagTexture;
     Poi? _shop;
     StandardMaterial3D _shell = null!;
-    StandardMaterial3D _mob = null!, _mobHurt = null!, _herShot = null!, _theirShot = null!, _gate = null!, _gateCore = null!;
-    Node3D _gateway = null!;
+    StandardMaterial3D _mob = null!, _mobHurt = null!, _herShot = null!, _theirShot = null!;
     StandardMaterial3D _clamPearl = null!, _royalPearl = null!;
-    OmniLight3D _gateLight = null!;
     float _time;
 
     public override void _Ready()
@@ -40,22 +38,6 @@ public partial class CombatView : Node3D
         _clamPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.96f, 0.9f), Roughness = 0.12f, Metallic = 0.3f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.82f, 0.9f), EmissionEnergyMultiplier = 0.9f };
         _royalPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.85f, 0.45f), Roughness = 0.1f, Metallic = 0.5f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.6f, 0.95f), EmissionEnergyMultiplier = 1.6f };
 
-        _gate = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(1f, 0.6f, 0.25f), EmissionEnabled = true, Emission = new Color(1f, 0.55f, 0.2f), EmissionEnergyMultiplier = 3f };
-        _gateCore = new StandardMaterial3D
-        {
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            AlbedoColor = new Color(1f, 0.7f, 0.4f, 0.35f),
-            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
-        };
-        _gateway = new Node3D();
-        AddChild(_gateway);
-        float r = PlaneCombatTuning.GatewayRadius;
-        _gateway.AddChild(new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = r - 0.35f, OuterRadius = r, Rings = 48, RingSegments = 12 }, MaterialOverride = _gate });
-        _gateway.AddChild(new MeshInstance3D { Mesh = new TorusMesh { InnerRadius = r * 0.55f, OuterRadius = r * 0.62f, Rings = 32, RingSegments = 8 }, MaterialOverride = _gate, Position = new Vector3(0f, 0.05f, 0f) });
-        _gateway.AddChild(new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = r - 0.3f, BottomRadius = r - 0.3f, Height = 0.02f, RadialSegments = 40 }, MaterialOverride = _gateCore });
-        _gateLight = new OmniLight3D { LightColor = new Color(1f, 0.6f, 0.3f), LightEnergy = 2.5f, OmniRange = 10f, Position = new Vector3(0f, 1.2f, 0f) };
-        _gateway.AddChild(_gateLight);
     }
 
     static StandardMaterial3D Glow(Color c) => new()
@@ -259,8 +241,6 @@ public partial class CombatView : Node3D
         _catalog = catalog;
         _pearlBorn.Clear();
         foreach (var pearl in world.Pearls) AddPearl(pearl, -10f);
-        var at = world.GatewayPosition;
-        _gateway.Position = new Vector3(at.X, LevelMap.SwimBand - 0.4f, at.Y);
     }
 
     ItemCatalog? _catalog;
@@ -444,13 +424,5 @@ public partial class CombatView : Node3D
         bool inShop = _shop is not null && System.Numerics.Vector2.Distance(world.Player.Position, _shop.Position) <= _shop.Radius + 1f;
         foreach (var price in _prices) price.Visible = inShop;
 
-        // The gateway turns and breathes while open; closed, it is a dim ring.
-        bool open = world.GatewayOpen;
-        // Hidden under Queen Clam while she sits on it.
-        _gateway.Visible = world.Boss is not { Landed: true, Freed: false };
-        _gateway.Rotation = new Vector3(0f, _time * (open ? 0.8f : 0.1f), 0f);
-        _gate.EmissionEnergyMultiplier = open ? 2.5f + 0.8f * Mathf.Sin(_time * 2.5f) : 0.3f;
-        _gateCore.AlbedoColor = new Color(1f, 0.7f, 0.4f, open ? 0.25f + 0.12f * Mathf.Sin(_time * 3f) : 0.05f);
-        _gateLight.LightEnergy = open ? 2.5f : 0.4f;
     }
 }
