@@ -68,9 +68,19 @@ What changes is the protagonist's skin:
 ## 2. The Player — Clementine the Absorbent Jellyfish
 
 ### 2.1 Body
-- **Bell**: translucent dome, ~0.8 m across, breathing rhythm (slow contract/
-  relax cycle). Eight oral arms + marginal tentacles trail beneath, **verlet
-  chains** inherited from the octopus arm system (DESIGN-2D §11.2 tooling).
+- **Bell**: translucent tangerine dome, ~0.84 m across, with a scalloped
+  margin of sixteen lappets. Seen through it: four gold gonad horseshoes round
+  the stomach, radial and ring canals, warts of stinging cells, and eight rim
+  organs in the margin's notches. Breathing rhythm at rest; every stroke is a
+  contraction beat (quick squeeze, slow relax, a slight recoil flare) with a
+  light wave running base→rim. The bell leans into the swim on a critically
+  damped spring.
+- **Tentacles**: sixteen thin marginal tentacles (one per notch, 1.35–1.95 m)
+  and eight ruffled oral arms on **verlet chains** with a fixed 120 Hz step:
+  they stream behind her in travelling S-waves while she swims, swing through
+  turns, are pushed back by each stroke, and float out around her in a slow
+  current when she stops. Drawn as camera-facing ribbons, always over the
+  scene (never cut away). Presentation only: the sim never sees them.
 - **Bioluminescence**: a soft point light carried at the bell; the player's glow
   is the primary light source in dark depths (inherited rule: *Clementine is
   always the warm light in the scene*).
@@ -329,9 +339,14 @@ between the places, before any rock exists:
   looking "down" you see, ~10 m below, a **dark, blurred, slow-moving shadow
   copy of the next depth** — its structures as vague silhouettes, and **the
   next biome's creatures as drifting shadows**.
-- Rendered as a cheap parallel pass: next-biome placeholder geometry at
-  10–15% opacity, heavy blur, slow independent drift, lit only by
-  bioluminescence and the crack-glow filtering up through the floor.
+- Rendered in the water pass (`beneath.gdshaderinc`), no geometry: each view
+  ray is carried on to a plane ~13 m below the swim level (y −14), so the layer
+  slides by with true parallax under the floor. There it reads a procedural
+  shadow field: broad ridges of the deeper reef, swaying forests of the next
+  biome, six large creatures gliding on long paths across the level, and a
+  drifting fish school. Shadows darken the floor toward the next depth's murk
+  (`reef_beneath_tint`); the strength is per depth (`ReefLook.Beneath`, the
+  `reef_beneath` global) and rises where the floor itself drops away.
 - **Escalates with depth:** in the Sunlit Shallows it's almost invisible
   (bright water hides it). In the Twilight Trench and Abyss, ambient light is
   near zero and **the beneath-layer becomes the scenery** — giant slow shapes
@@ -341,8 +356,8 @@ between the places, before any rock exists:
   the Crack **backlights both layers** around the arena; the Tank's LED light
   bleeds down into the Abyss below in the finale, inverted — the artificial
   light above is what reaches *down*.
-- Shadow mobs are cosmetic (no AI, wander paths, `cosmetic` RNG stream) —
-  determinism preserved (inherited §10 rule). Nothing in the beneath-layer ever reaches up through the floor.
+- Shadow mobs are cosmetic: a function of position and time on the GPU, no
+  AI, no RNG — the sim never sees them (inherited §10 rule). Nothing in the beneath-layer ever reaches up through the floor.
 
 ### 4.4 Flow on a level (the open-floor pacing contract)
 1. Enter over the Crack's light-shaft from above (inherited start-room motif).
@@ -545,7 +560,7 @@ The pivot is mostly **deletion and constraint**:
 | Navigation | 3D flow field → 2D grid flow field (strict simplification). Walkers: floor contour following. |
 | Camera | New rig: tilted perspective, scroll smoothing, the two sanctioned breaks. |
 | Player presentation | New: bell soft-body (reuse verlet tooling), pulse propulsion, beneath-bell ammo orbs, pearl-consumption animation, bell pattern composer (motif×color instancing on the bell shader). |
-| Beneath-layer | New but cheap: separate low-detail instance pass, blurred, opacity by depth; shadow-mob wanderers on cosmetic stream. |
+| Beneath-layer | New but cheap: a procedural shadow plane in the water pass, parallax by view ray, strength by depth; shadow mobs are pure functions of time. |
 | Lighting | Re-aim inherited work: god rays cross-view, caustics on floor, pooled point lights (glows), fog by depth. Sun shadow map optional at top depths only. |
 | Water field | 2D version of inherited grid. |
 | Enemies/bosses | Behaviors/AI inherited; **presentation and bullet patterns reworked** to 2D. Hand fight rebuilt per §6.5. |

@@ -261,7 +261,7 @@ public partial class TopDownMain : Node3D
             BackgroundMode = Godot.Environment.BGMode.Color,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
             TonemapMode = Godot.Environment.ToneMapper.Aces,
-            TonemapExposure = 0.88f,
+            TonemapExposure = 0.84f,
             FogEnabled = true,
             GlowEnabled = true,
             GlowIntensity = 0.6f,

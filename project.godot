@@ -130,3 +130,11 @@ reef_crack={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+reef_beneath={
+"type": "vec4",
+"value": Vector4(0, -14, 0, 0)
+}
+reef_beneath_tint={
+"type": "vec3",
+"value": Vector3(0.1, 0.2, 0.15)
+}

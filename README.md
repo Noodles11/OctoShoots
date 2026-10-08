@@ -32,7 +32,7 @@ Arguments after `--`:
 - Where to start: `--at=start|arch|cave|rift|gate|shop|cache|treasure|ambush|mob|boss`.
 - Automation: `--autopilot` (swims the shortest route to the rift), `--fire`, `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
-- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`
+- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance)
   (no boss title card).
 - Any of these flags skip the title and start a run that is neither recorded nor saved.
 - The title's own review flags:
@@ -60,7 +60,7 @@ src/Game/Title/    title screen (the main scene): live-sea backdrop, menu, seed 
 src/Game/TopDown/ the game scene: level, combat and boss views, camera rig, HUD, minimap, menus, splashes
 src/Game/Fx/      reusable art: flora, creature, clam and reef meshes, pearl materials, particles, sounds, sun light
 src/Game/         controls (InputSetup), settings and save store, conversions
-assets/shaders/   the reef's skin (reef_surface), the water pass (topdown_post), bubble, pearl, boss, map and art shaders
+assets/shaders/   the reef's skin (reef_surface), the water pass (topdown_post) and the beneath-layer, Clementine's bell and tentacles, bubble, pearl, boss, map and art shaders
 docs/             design documents, the Depth 1 bestiary and milestone checklists
 ```
 

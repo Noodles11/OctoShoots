@@ -1,4 +1,4 @@
-// The water (THEME-BIBLE §6.1 depth focus, §6.2 light, §6.9 post stack), drawn over the reef as one full-screen pass.
+// The water (THEME-BIBLE Â§6.1 depth focus, Â§6.2 light, Â§6.9 post stack), drawn over the reef as one full-screen pass.
 // Everything is judged by its height against the swim level (0), where Clementine floats; that layer stays sharp.
 //   Below it the world blurs and sinks into the depth's water colour, turquoise in the Shallows, murk further down.
 //   Above it rock blurs into soft foreground silhouettes, tinted by the water rather than blackened.
@@ -11,6 +11,7 @@ shader_type spatial;
 render_mode unshaded, depth_test_disabled, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
 #include "res://assets/shaders/sunlight.gdshaderinc"
+#include "res://assets/shaders/beneath.gdshaderinc"
 
 global uniform vec3 reef_water_shallow;
 global uniform vec3 reef_water_deep;
@@ -108,8 +109,8 @@ void fragment() {
 	// Everything is seen through water: reds fade and a turquoise in-scatter rises with the water between the sea
 	// surface and what this pixel shows (rock tops near the surface keep more of their colour).
 	float column_in = clamp((sea_surface_y - (open_deep ? -40.0 : world.y)) / 20.0, 0.0, 1.5);
-	col *= mix(vec3(1.0), vec3(0.66, 0.9, 1.04), column_in);
-	col = mix(col, reef_water_deep * 0.85, 0.2 * column_in);
+	col *= mix(vec3(1.0), vec3(0.64, 0.9, 1.05), column_in);
+	col = mix(col, reef_water_deep * 0.7, 0.13 * column_in);
 
 	// The deeps sink into the water: turquoise just under the layer, the depth's murk far below. Clear water in the
 	// Shallows (a light veil), thick murk deeper down (reef_fog).
@@ -117,6 +118,21 @@ void fragment() {
 	float veil = mix(0.18, 0.5, reef_fog);
 	float fog = smoothstep(0.0, 1.8, below) * (veil + (0.85 - veil) * (1.0 - exp(-below * deep_fog * (0.6 + reef_fog))));
 	col = mix(col, water, fog);
+
+	vec3 cam = CAMERA_POSITION_WORLD;
+	vec3 ray = normalize(world - cam);
+
+	// The beneath-layer, seen through the translucent floor: the next depth's shadows about 13 m down, faint through
+	// the Shallows' bright sand, clearer the deeper the reef, plain where the floor drops away. It sits deeper than the
+	// floor, so it slides by with parallax.
+	if (reef_beneath.x > 0.0 && !open_deep) {
+		float floor_seen = 0.2 + 0.6 * smoothstep(0.5, 1.0, reef_beneath.x);
+		float through = reef_beneath.x * (floor_seen + (1.0 - floor_seen) * smoothstep(1.0, 7.0, below)) * (1.0 - smoothstep(0.0, 1.0, above));
+		vec3 pb = cam + ray * ((reef_beneath.y - cam.y) / min(ray.y, -1e-3));
+		vec2 b = beneath(pb.xz, TIME, reef_crack);
+		col = mix(col, col * 0.3 + reef_beneath_tint * 0.1, min(b.x * through * 2.4, 0.8));
+		col += vec3(1.0, 0.36, 0.08) * b.y * through * 0.4;
+	}
 
 	// The Crack shines up through the murk: an orange glow breathing out of the fissure, a doorway in the floor.
 	if (reef_crack.w > 0.0 && !open_deep) {
@@ -129,8 +145,6 @@ void fragment() {
 
 	// God rays: march the view ray through the water column, from the sea surface down to what it hits, summing the
 	// shaft density (parallel to the sun, drifting with the swell). Longer water paths gather more light.
-	vec3 cam = CAMERA_POSITION_WORLD;
-	vec3 ray = normalize(world - cam);
 	vec3 hit = open_deep ? cam + ray * 90.0 : world;
 	float t0 = ray.y < -1e-3 ? max((sea_surface_y - cam.y) / ray.y, 0.0) : 0.0;
 	float t1 = max(dot(hit - cam, ray), t0);
