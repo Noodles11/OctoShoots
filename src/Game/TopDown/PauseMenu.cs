@@ -19,7 +19,7 @@ public partial class PauseMenu : Control
     public event Action<float>? ZoomChanged;
 
     /// <summary>The camera zoom the slider starts at; set before the menu is added.</summary>
-    public float Zoom { get; init; } = 1f;
+    public float Zoom { get; init; } = CameraRig.DefaultZoom;
 
     VBoxContainer _pearls = null!;
     Label _summary = null!;

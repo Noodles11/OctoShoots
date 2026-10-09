@@ -633,8 +633,15 @@ public partial class TopDownMain : Node3D
         bool dived = false;
         while (_accumulator >= PlaneWorld.Dt && steps < 8 && !dived)
         {
+            float hpBefore = _world.Player.Hp;
             _world.Step(ReadInput());
             _recorder.Observe(_world);
+            // Healing from any source shows as a green number: the HP she gained beyond the hits she took this step.
+            float taken = 0f;
+            foreach (var e in _world.Events)
+                if (e.Type == PlaneEventType.PlayerHit) taken += e.Size;
+            float healed = _world.Player.Hp - hpBefore + taken;
+            if (healed > 0.05f) _damage.ShowHeal(_world.Player.Position, healed);
             _levelTime += PlaneWorld.Dt;
             _elapsed += PlaneWorld.Dt;
             _accumulator -= PlaneWorld.Dt;

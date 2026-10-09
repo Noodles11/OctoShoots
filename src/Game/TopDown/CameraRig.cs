@@ -15,14 +15,14 @@ public partial class CameraRig : Node3D
     /// <summary>Distance from the followed point; puts ~22 m of ground top to bottom and ~33 m across at 16:9.</summary>
     public const float Distance = 34f;
     const float Follow = 6f;
-    /// <summary>The zoom setting's range: 0.75 (farther, more of the reef) to 1.5 (closer).</summary>
-    public const float MinZoom = 0.75f, MaxZoom = 1.5f;
+    /// <summary>The zoom setting: 1.5 by default, from 1 (50% farther, more of the reef) to 2 (50% closer).</summary>
+    public const float DefaultZoom = 1.5f, MinZoom = 1f, MaxZoom = 2f;
     /// <summary>Verification: `--dbg-zoom=metres` brings the camera closer (to inspect Clementine); it overrides the setting.</summary>
     readonly float? _dbgDistance = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--dbg-zoom=")) is { } zoom
         && float.TryParse(zoom["--dbg-zoom=".Length..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float d) ? d : null;
-    float _distance = Distance;
+    float _distance = Distance / DefaultZoom;
 
-    /// <summary>The camera-zoom setting: 1 is the designed framing; above 1 closer, below 1 farther. The dive's Zoom multiplies it.</summary>
+    /// <summary>The camera-zoom setting (1 is the designed 34 m framing; 1.5 the default). The dive's Zoom multiplies it.</summary>
     public float ZoomSetting
     {
         set => _distance = _dbgDistance ?? Distance / Mathf.Clamp(value, MinZoom, MaxZoom);
