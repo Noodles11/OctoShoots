@@ -17,10 +17,12 @@ public static class PlaneEconomyTuning
     public const int MobDropMin = 1, MobDropMax = 2;
     /// <summary>Shell caches at places: the item cache and secret rooms (inclusive ranges).</summary>
     public const int CacheMin = 6, CacheMax = 9, SecretMin = 8, SecretMax = 12;
-    /// <summary>The shop: pearls, and a health top-up.</summary>
-    public const int PearlPrice = 15, HealthPrice = 5;
+    /// <summary>The shop: at most one pearl (offered this often), and always a heart (a health top-up).</summary>
+    public const int PearlPrice = 30, HealthPrice = 5;
     public const float HealthAmount = 25f;
-    public const int PearlsForSale = 2;
+    public const float PearlOffered = 0.5f;
+    /// <summary>The shop's stand slots, left to right: the pearl, the heart, and a third kept for wares to come.</summary>
+    public const int PearlSlot = 0, HeartSlot = 1, Slots = 3;
     /// <summary>A stand sells when she touches it.</summary>
     public const float StandReach = 0.7f;
 }
@@ -89,7 +91,10 @@ public sealed partial class PlaneWorld
         }
     }
 
-    /// <summary>The shop's stands in a row across its chamber: pearls she does not have yet, and a health top-up.</summary>
+    /// <summary>
+    /// The shop's stands in fixed slots across its chamber: a pearl she does not have yet (some visits none), a heart,
+    /// and an empty third slot for wares to come.
+    /// </summary>
     void PlaceShop()
     {
         var shop = Map.Pois.FirstOrDefault(p => p.Kind == PoiKind.Shop);
@@ -98,20 +103,10 @@ public sealed partial class PlaneWorld
         Vector2 side = new(-facing.Y, facing.X);
         var rng = new Rng(Map.Seed ^ 0x5409UL ^ ((ulong)Map.Level << 28) ^ ((ulong)Map.Depth << 36) ^ ((ulong)Map.Attempt << 50));
         var offer = PlaneRun.PortedPearls.Where(id => Run.CanOffer(id) && Pearls.All(q => q.ItemId != id)).ToList();
-        var items = new List<ShopStand>();
-        for (int i = 0; i < PlaneEconomyTuning.PearlsForSale && offer.Count > 0; i++)
-        {
-            int k = rng.Int(offer.Count);
-            items.Add(new ShopStand { Kind = StandKind.Pearl, ItemId = offer[k], Price = PlaneEconomyTuning.PearlPrice });
-            offer.RemoveAt(k);
-        }
-        items.Add(new ShopStand { Kind = StandKind.Health, Price = PlaneEconomyTuning.HealthPrice });
-        for (int i = 0; i < items.Count; i++)
-        {
-            float along = (i - (items.Count - 1) * 0.5f) * 2.4f;
-            items[i].Position = shop.Position + side * along - facing * 0.8f;
-            Stands.Add(items[i]);
-        }
+        Vector2 Slot(int i) => shop.Position + side * ((i - (PlaneEconomyTuning.Slots - 1) * 0.5f) * 2.4f) - facing * 0.8f;
+        if (offer.Count > 0 && rng.NextFloat() < PlaneEconomyTuning.PearlOffered)
+            Stands.Add(new ShopStand { Kind = StandKind.Pearl, ItemId = offer[rng.Int(offer.Count)], Price = PlaneEconomyTuning.PearlPrice, Position = Slot(PlaneEconomyTuning.PearlSlot) });
+        Stands.Add(new ShopStand { Kind = StandKind.Health, Price = PlaneEconomyTuning.HealthPrice, Position = Slot(PlaneEconomyTuning.HeartSlot) });
     }
 
     /// <summary>A defeated mob leaves shells, flung a little way.</summary>

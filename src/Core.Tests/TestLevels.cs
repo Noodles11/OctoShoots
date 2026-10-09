@@ -22,6 +22,14 @@ static class TestLevels
         throw new InvalidOperationException("no such level in the seed's first 60");
     }
 
+    /// <summary>Every level of the seed's first 60 whose plan matches, in order.</summary>
+    public static System.Collections.Generic.IEnumerable<LevelId> All(Func<LevelPlan, bool> match)
+    {
+        var id = LevelId.First;
+        for (int i = 0; i < 60; i++, id = LevelPlan.NextOf(Seed, id))
+            if (match(LevelPlan.For(Seed, id))) yield return id;
+    }
+
     /// <summary>A level with a shop.</summary>
     public static LevelMap WithShop() => Get(Find(p => p.Shops > 0 && !p.HasBoss));
 

@@ -284,11 +284,11 @@ seabed by the rules below.
   fissure 14–18 m long; the Crack is the shaft.
 - **The level's places** come from its plan. At most **5** besides the start
   and the exit (the boss arena counts); over the cap they are dropped in the
-  order ambushes, curse den, secret, second treasure, shell cache:
+  order ambushes, curse den, secret, shell cache (treasure rooms stay):
 
   | Place | Level 1 of a depth | Level 2+ |
   |---|---|---|
-  | Treasure room | 1, a 2nd at 20% | 1 at 95%; a 2nd at 3% |
+  | Treasure room | always 1 | at most 2 per depth: a 2nd at 50%, on one level from 2 to the boss level |
   | Secret room | 40% | 40% |
   | Curse den | 30% | 30% |
   | Shop | never | 45% |
@@ -826,9 +826,10 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
     three rings of sound swelling out from her; not usable at full HP ("Already at full health").
 - **Shells (the currency, first pass, `PlaneEconomy.cs`):** small shells lie in caches at the shell cache (6–9),
   and secret rooms (8–12), and every defeated mob drops 1–2; they drift to her from 2.5 m. The shop
-  sells two pearls she does not have (15 shells each) and a health top-up (+25 HP, 5 shells, only when hurt): the
+  has three stand slots: a pearl she does not have on half the visits (30 shells), always a heart (a health top-up:
+  +25 HP, 5 shells, only when hurt), and a third slot kept empty for wares to come. The
   goods float on their own (pearls as in a treasure room, the top-up as a red heart), each with a small price tag on a
-  string ("15" and a shell), shown only while she is inside the shop; she buys by touching one. The HUD counter (a shell icon and the number) sits above the pearls and brightens and
+  string (the price and a shell), shown only while she is inside the shop; she buys by touching one. The HUD counter (a shell icon and the number) sits above the pearls and brightens and
   swells with every shell collected. Shells carry down with her pearls and HP.
 - **Queen Clam (the Depth 1 boss, `PlaneBoss.cs`, adapted from DEPTH1-BESTIARY §5):** she guards the Crack on every
   depth's boss level for now (the other depths' bosses are not built). The arena is the exit's flat 15 m disc.

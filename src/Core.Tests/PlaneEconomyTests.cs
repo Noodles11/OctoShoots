@@ -59,10 +59,31 @@ public class PlaneEconomyTests
         Assert.InRange(dropped, PlaneEconomyTuning.MobDropMin, PlaneEconomyTuning.MobDropMax);
     }
 
+    /// <summary>The first shop level whose shop rolled a pearl.</summary>
+    static PlaneWorld WorldWithShopPearl() => TestLevels.All(p => p.Shops > 0 && !p.HasBoss)
+        .Select(id => new PlaneWorld(TestLevels.Get(id), new Tuning(), new PlaneRun(Catalog.Value, new Tuning())))
+        .First(w => w.Stands.Any(s => s.Kind == StandKind.Pearl));
+
+    [Fact]
+    public void EveryShopHasOneHeartAndAtMostOnePearlAt30()
+    {
+        int shops = 0;
+        foreach (var id in TestLevels.All(p => p.Shops > 0 && !p.HasBoss).Take(8))
+        {
+            var w = new PlaneWorld(TestLevels.Get(id), new Tuning(), new PlaneRun(Catalog.Value, new Tuning()));
+            shops++;
+            Assert.Single(w.Stands, s => s.Kind == StandKind.Health);
+            var pearls = w.Stands.Where(s => s.Kind == StandKind.Pearl).ToList();
+            Assert.InRange(pearls.Count, 0, 1);
+            Assert.All(pearls, s => Assert.Equal(30, s.Price));
+        }
+        Assert.True(shops > 0);
+    }
+
     [Fact]
     public void TheShopSellsPearlsAndATopUpForShells()
     {
-        var w = World();
+        var w = WorldWithShopPearl();
         Assert.Contains(w.Stands, s => s.Kind == StandKind.Health);
         var pearl = w.Stands.First(s => s.Kind == StandKind.Pearl);
         Assert.DoesNotContain(w.Pearls, p => p.ItemId == pearl.ItemId);

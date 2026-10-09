@@ -73,6 +73,27 @@ public class TopDownGenTests
 
     [Theory]
     [MemberData(nameof(Seeds))]
+    public void EveryDepthHasOneOrTwoTreasureRooms(string seed)
+    {
+        var code = SeedCode.Parse(seed);
+        for (int depth = 1; depth <= LevelPlan.Depths; depth++)
+        {
+            int boss = LevelPlan.BossLevel(code, 1, depth);
+            int second = LevelPlan.SecondTreasureLevel(code, 1, depth);
+            Assert.True(second == 0 || (second >= 2 && second <= boss), $"depth {depth}: second treasure on level {second}");
+            int total = 0;
+            for (int level = 1; level <= boss; level++)
+            {
+                int t = LevelPlan.For(code, new LevelId(1, depth, level)).Treasures;
+                Assert.InRange(t, 0, 1);
+                total += t;
+            }
+            Assert.Equal(second == 0 ? 1 : 2, total);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Seeds))]
     public void EveryDepthEndsWithItsBossOnLevelFourOrFive(string seed)
     {
         var code = SeedCode.Parse(seed);
@@ -87,7 +108,7 @@ public class TopDownGenTests
             Assert.True(plan.Ambushes <= LevelStocking.MaxAmbushes);
             if (id.Level == 1)
             {
-                Assert.InRange(plan.Treasures, 1, 2);
+                Assert.Equal(1, plan.Treasures);
                 Assert.Equal(0, plan.Shops);
                 Assert.Equal(0, plan.Caches);
             }

@@ -38,6 +38,8 @@ public sealed class RunStreams
     public Rng Plan(LevelId id) => _root.Stream($"plan/{id.Cycle}/{id.Depth}/{id.Level}");
     /// <summary>Which level of a depth its boss stands on.</summary>
     public Rng BossRoll(int cycle, int depth) => _root.Stream($"boss/{cycle}/{depth}");
+    /// <summary>Whether a depth has its second treasure room, and on which level.</summary>
+    public Rng TreasureRoll(int cycle, int depth) => _root.Stream($"treasure/{cycle}/{depth}");
     /// <summary>The stamp of rock around the start of a level (and around the hole above it).</summary>
     public ulong StampSeed(LevelId entered) => _root.Stream($"stamp/{entered.Cycle}/{entered.Depth}/{entered.Level}").NextU64();
     public Rng Snacks() => _root.Stream("snacks");

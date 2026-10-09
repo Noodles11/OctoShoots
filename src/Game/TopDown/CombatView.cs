@@ -204,7 +204,7 @@ public partial class CombatView : Node3D
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
         // The shop's goods float on their own, like the treasure room's pearl: pearls in their colours, the top-up a red
-        // heart. Each hangs a little price tag on a string ("15" and a shell), shown only while she is inside the shop.
+        // heart. Each hangs a little price tag on a string (its price and a shell), shown only while she is inside the shop.
         foreach (var stand in world.Stands)
         {
             var node = new Node3D { Position = new Vector3(stand.Position.X, LevelMap.SwimBand, stand.Position.Y) };

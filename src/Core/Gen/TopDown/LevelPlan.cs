@@ -17,15 +17,16 @@ public readonly record struct LevelId(int Cycle, int Depth, int Level)
 /// <summary>
 /// What a level holds (DESIGN-TOPDOWN §4.1 stage 1): rolled per level from the run seed, before the level is shaped.
 /// At most <see cref="MaxPlaces"/> places besides the start and the exit; over the cap, places are dropped in the order
-/// ambushes, curse den, secret, second treasure, shell cache.
+/// ambushes, curse den, secret, shell cache.
 /// </summary>
 public static class LevelStocking
 {
     public const int MaxPlaces = 5;
-    /// <summary>Level 1 of a depth: one treasure room, sometimes two.</summary>
-    public const float SecondTreasureFirst = 0.2f;
-    /// <summary>Deeper levels: one treasure room most of the time, very rarely a second.</summary>
-    public const float TreasureLater = 0.95f, SecondTreasureLater = 0.03f;
+    /// <summary>
+    /// At most two treasure rooms per depth: always one on level 1, and this often a second on one level from 2 to the
+    /// boss level (4 or 5).
+    /// </summary>
+    public const float SecondTreasure = 0.5f;
     public const float Secret = 0.4f, Curse = 0.3f;
     /// <summary>From level 2 of a depth: a shop, and a guarded shell cache.</summary>
     public const float Shop = 0.45f, Cache = 0.6f;
@@ -68,6 +69,15 @@ public sealed class LevelPlan
     public static int BossLevel(SeedCode seed, int cycle, int depth) =>
         new RunStreams(seed).BossRoll(cycle, depth).NextFloat() < LevelStocking.BossOnFour ? 4 : 5;
 
+    /// <summary>The level of this depth (in this loop) with its second treasure room (2 to the boss level), or 0 for none.</summary>
+    public static int SecondTreasureLevel(SeedCode seed, int cycle, int depth)
+    {
+        var rng = new RunStreams(seed).TreasureRoll(cycle, depth);
+        if (rng.NextFloat() >= LevelStocking.SecondTreasure) return 0;
+        int boss = BossLevel(seed, cycle, depth);
+        return 2 + rng.Int(boss - 1);
+    }
+
     public static LevelId NextOf(SeedCode seed, LevelId id)
     {
         if (id.Level < BossLevel(seed, id.Cycle, id.Depth)) return id with { Level = id.Level + 1 };
@@ -91,23 +101,20 @@ public sealed class LevelPlan
         var rng = streams.Plan(id);
         bool boss = id.Level == BossLevel(seed, id.Cycle, id.Depth);
         bool first = id.Level == 1;
-        int treasures = first
-            ? 1 + (rng.NextFloat() < LevelStocking.SecondTreasureFirst ? 1 : 0)
-            : rng.NextFloat() < LevelStocking.TreasureLater ? 1 + (rng.NextFloat() < LevelStocking.SecondTreasureLater ? 1 : 0) : 0;
+        int treasures = first || id.Level == SecondTreasureLevel(seed, id.Cycle, id.Depth) ? 1 : 0;
         int secrets = rng.NextFloat() < LevelStocking.Secret ? 1 : 0;
         int curses = rng.NextFloat() < LevelStocking.Curse ? 1 : 0;
         int shops = !first && rng.NextFloat() < LevelStocking.Shop ? 1 : 0;
         int caches = !first && rng.NextFloat() < LevelStocking.Cache ? 1 : 0;
         int ambushes = rng.Int(LevelStocking.MaxAmbushes + 1);
 
-        // Over the cap: drop ambushes, then the curse den, the secret, the second treasure, the shell cache.
+        // Over the cap: drop ambushes, then the curse den, the secret, the shell cache. Treasure rooms stay.
         int Total() => treasures + secrets + curses + shops + caches + ambushes + (boss ? 1 : 0);
         while (Total() > LevelStocking.MaxPlaces)
         {
             if (ambushes > 0) ambushes--;
             else if (curses > 0) curses--;
             else if (secrets > 0) secrets--;
-            else if (treasures > 1) treasures--;
             else if (caches > 0) caches--;
             else break;
         }
