@@ -60,7 +60,7 @@ public sealed class PlaneInk
 
 public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, HeartCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
     ChargeFull, InkBlast, ShieldBlocked, ActiveUsed, ActiveNotReady, ActiveDenied,
-    SurgeStarted, SurgeEnded,
+    SurgeStarted, SurgeEnded, VaseHit, VaseBroken,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
 /// <summary>What hurt Clementine (the killing blow names what ended a run).</summary>
@@ -104,6 +104,7 @@ public sealed partial class PlaneWorld
         PlaceShells();
         PlaceAmbushes();
         PlaceBoss();
+        PlaceVases();
     }
 
     public LevelMap Map { get; }
@@ -212,6 +213,7 @@ public sealed partial class PlaneWorld
         Move(ref p.Position, ref p.Velocity, Radius, barrier: ArenaBarrier.Inside);
 
         StepReef();
+        StepVases();
 
         foreach (var c in Clouds) c.Life -= Dt;
         Clouds.RemoveAll(c => c.Life <= 0f);
@@ -284,7 +286,7 @@ public sealed partial class PlaneWorld
         }
         foreach (var rock in _rocks)
             if (Vector2.Distance(p, rock.Center) < rock.Radius + radius) return false;
-        return true;
+        return VaseAt(p, radius) is null;
     }
 
     /// <summary>Clear water that the arena's wall (if sealed) also allows.</summary>
@@ -297,6 +299,7 @@ public sealed partial class PlaneWorld
         foreach (var rock in _rocks)
             if (Vector2.Distance(p, rock.Center) < rock.Radius + radius)
                 return SafeNormalize(rock.Center - p);
+        if (VaseAt(p, radius) is { } vase) return SafeNormalize(vase.Position - p);
         // The wall lies where the rim of the circle meets high ground (a trench's downhill slope beside it must not count).
         Vector2 blocked = Vector2.Zero;
         for (int i = 0; i < 16; i++)

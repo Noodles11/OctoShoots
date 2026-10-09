@@ -32,6 +32,9 @@ public partial class HudView : Control
     /// <summary>The run's elapsed play time (it stands still while paused), shown at the top centre.</summary>
     public float Elapsed;
 
+    /// <summary>Where the run stands ("Depth 1 · Level 2"), always shown beside the clock.</summary>
+    public string LevelTitle = "";
+
     float _bossHp, _bossTrail, _bossShown;
     bool _bossFight;
     string _prompt = "";
@@ -119,6 +122,14 @@ public partial class HudView : Control
         var tat = new Vector2((Size.X - tsize.X) * 0.5f, Margin + 4f);
         DrawRect(new Rect2(tat - new Vector2(10f, 4f), tsize + new Vector2(20f, 8f)), new Color(0f, 0f, 0f, 0.35f));
         DrawString(font, tat + new Vector2(0f, tsize.Y - 4f), text, HorizontalAlignment.Left, -1, 16, new Color(1f, 1f, 1f, 0.9f));
+        // Where the run stands, always on, just right of the clock.
+        if (LevelTitle.Length > 0)
+        {
+            var lsize = font.GetStringSize(LevelTitle, HorizontalAlignment.Left, -1, 16);
+            var lat = new Vector2(tat.X + tsize.X + 26f, tat.Y);
+            DrawRect(new Rect2(lat - new Vector2(10f, 4f), lsize + new Vector2(20f, 8f)), new Color(0f, 0f, 0f, 0.35f));
+            DrawString(font, lat + new Vector2(0f, lsize.Y - 4f), LevelTitle, HorizontalAlignment.Left, -1, 16, new Color(1f, 0.93f, 0.82f, 0.9f));
+        }
 
         // Queen Clam's health, under the clock.
         if (_bossShown > 0.01f)

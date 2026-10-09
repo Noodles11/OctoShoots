@@ -405,8 +405,8 @@ public sealed partial class PlaneWorld
                     foreach (var bubble in Shots)
                         if (bubble.FromPlayer && bubble.Life > 0f && Geo.SegmentDistance(bubble.Position, was, shot.Position) < bubble.Radius + shot.Radius)
                             Pop(bubble, was - bubble.Position);
-                // Rock stops shots, and so does the sealed arena's wall.
-                if (!Map.IsOpen(shot.Position) || _rocks.Any(r => Vector2.Distance(shot.Position, r.Center) < r.Radius) || CrossesRim(was, shot.Position)) shot.Life = 0f;
+                // Rock and pots stop shots, and so does the sealed arena's wall.
+                if (!Map.IsOpen(shot.Position) || _rocks.Any(r => Vector2.Distance(shot.Position, r.Center) < r.Radius) || VaseAt(shot.Position, shot.Radius) is not null || CrossesRim(was, shot.Position)) shot.Life = 0f;
             }
             if (shot.Life <= 0f) continue;
             if (shot.FromPlayer)
@@ -499,6 +499,7 @@ public sealed partial class PlaneWorld
                 DamageMob(mob, damage, mob.Position - shot.Position);
         if (Boss is { Stage: BossStage.Fight, Open: true } boss && Vector2.Distance(boss.Position, shot.Position) < reach + PlaneBossTuning.BodyRadius)
             DamageBoss(boss, damage, boss.Position - shot.Position);
+        BlastVases(shot.Position, reach);
     }
 
     /// <summary>A pearl taken (found or bought): absorbed into her loadout; one that heals on pickup heals her now.</summary>
@@ -807,6 +808,12 @@ public sealed partial class PlaneWorld
         shot.Velocity = dir * speed;
 
         Vector2 next = shot.Line + shot.Velocity * Dt;
+        // A pot in the way: broken if the bubble is strong enough, else it rocks and the bubble pops or bounces off.
+        if (VaseAt(next, shot.Radius) is { } vase && !(shot.Boomerang && shot.Returning))
+        {
+            BubbleMeetsVase(shot, vase, dir);
+            return;
+        }
         bool rim = CrossesRim(shot.Line, next);
         if (rim || !Map.IsOpen(next) || _rocks.Any(r => Vector2.Distance(next, r.Center) < r.Radius))
         {

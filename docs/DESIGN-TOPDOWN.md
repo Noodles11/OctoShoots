@@ -169,7 +169,8 @@ What changes is the protagonist's skin:
 
 #### Diegetic vitals — the gonad rings and the bell rim
 Clementine's body carries her two most important gauges; there is no HP bar and
-no active-item slot on the HUD. Each uses a different part of her anatomy and a
+no active-item slot on the HUD (only a quiet echo of her health on the minimap's
+bezel, §9). Each uses a different part of her anatomy and a
 different visual channel, so they can never be confused.
 
 - **The gonad rings — health.** The four glowing cloverleaf rings at the centre
@@ -177,14 +178,15 @@ different visual channel, so they can never be confused.
   HP (25 HP each at the base 100).
   - *Intact:* a full ring glows a steady warm gold, breathing gently with her
     pulse.
-  - *Damaged:* as quarters are lost the rings gutter out one by one, from dim
-    ember to darkness (a ring holding part of its quarter glows ember, brighter
-    the more it holds). Healing rekindles them in order. The rings follow her
-    HP smoothly (draining at most 0.8 of her max a second, rekindling at 1.5),
-    so a lost quarter visibly gutters rather than blinking off.
-  - *Critical:* at a quarter or less, the last ring pulses slowly between dark
-    ember and a bright orange glow — a dying light at the centre of her body,
-    readable in peripheral vision without looking away from the fight.
+  - *Damaged:* the rings never change colour; as quarters are lost they fade
+    out one by one, ever more transparent (a ring holding part of its quarter is
+    as opaque as that part), until an empty ring is gone into the bell. Healing
+    brings them back in order. The rings follow her HP smoothly (draining at
+    most 0.8 of her max a second, returning at 1.5), so a lost quarter visibly
+    fades rather than blinking off.
+  - *Critical:* at a quarter or less, the last ring's light pulses slowly in and
+    out — a dying light at the centre of her body, readable in peripheral
+    vision without looking away from the fight.
   - The centre of the bell is where the eye rests on a jellyfish, which is why
     health — the thing she must always know — lives there.
 - **The bell rim — active-pearl charge.** The glowing marginal band at the
@@ -206,7 +208,7 @@ different visual channel, so they can never be confused.
 |---|---|---|
 | Position | Centre of bell | Outer edge |
 | Structure | Four discrete circles | One continuous ring |
-| Channel | Brightness (lit / guttered) | Motion (sweeping fill) |
+| Channel | Opacity (lit / faded) | Motion (sweeping fill) |
 | Tempo | Changes only on hit or heal | Always moving |
 
 The only overlap is the magenta hurt flash, which washes the whole bell for a
@@ -716,7 +718,15 @@ The FP staging ("look up through the surface") is replaced:
 
 - **HUD**: health and the active pearl's charge are diegetic on the bell (§2.5:
   gonad rings and rim), bubble orbs are diegetic under the bell (no ammo
-  counter needed); the HUD keeps sand dollars, ink bombs, the minimap.
+  counter needed); the HUD keeps sand dollars, ink bombs, the minimap. At the
+  top centre: the run's clock, and beside it, always on, where the run stands
+  ("Depth 1 · Level 2"; a depth's first level names the depth too: "Sunlit
+  Shallows · Depth 1 · Level 1"). Moving between levels shows no other message.
+- **The minimap's bezel is a quiet health bar**: four warm-gold segments just
+  inside its rim, parted at north, east, south and west — one for each gonad
+  ring — each as opaque as its quarter of her HP is full, over a faint track
+  (subtle, but there). They empty clockwise from the top-left and the last one
+  left pulses when she is critical, eased like the rings.
 - **Minimap**: circular, top-right, rotates so forward is up (inherited); fog of
   war; landmark icons (inherited §27); beneath-layer shadows *do not* appear on
   it — the map shows your floor only.
@@ -890,6 +900,18 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
     into a saved run. **Bubble Shield** (20 s): a big iridescent bubble round her for 3 s; nothing hurts her inside it (needles
     and spines are turned away; it wobbles when struck and flickers before it goes). **Whale Song** (40 s): heals 35 HP,
     three rings of sound swelling out from her; not usable at full HP ("Already at full health").
+- **Sunken amphorae (`PlaneVases.cs`, `VaseView`):** breakable pots on the seabed. Each level has 5–7 groups of
+  1–3, seeded, by the walls where the seabed lies 0.3–1.6 m under her swim plane (so they stand up into it), clear of
+  the start (20 m), the way down and the places: a tall two-handled amphora, a round jar or a squat pot, terracotta
+  with dark glaze bands and a painted cream shoulder band, algae creeping up the foot, each leaning a little. They are
+  solid: she and the creatures swim round them, and needles and Queen Clam's pearls stop on them.
+  - **A plain bubble is not enough:** it rocks the pot on its foot, and pops on the bump (40%) or bounces off, as on
+    rock. **What breaks one:** a bubble with an impact of 18 or more (merged, grown by Starfish Arm, or with the
+    damage stats), a Pearl Diver throw charged half way or more, any bubble with Captain's Hook's knockback, an Ink
+    Sac blast that reaches it, her ink dash into it — and, if she is lucky, a current: in a surging canyon a standing
+    pot may topple and break (4% a second at full flow, less in a gentler one; about one in three over a surge).
+  - **Broken,** it shatters: shards burst out along the blow, tumble down through the water and lie on the sand a
+    while before fading, and a puff of silt rises. It leaves **2–3 shells** (50%), **a heart** (20%) or nothing.
 - **Shells (the currency, first pass, `PlaneEconomy.cs`):** small shells lie in caches at the shell cache (6–9),
   and secret rooms (8–12); they drift to her from 2.5 m. A freed mob leaves a **heart** (6%: it heals 20 HP; she
   takes it only when hurt, otherwise it waits where it fell, a small red heart), else **shells** (30%: one, or two

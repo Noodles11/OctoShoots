@@ -2,8 +2,9 @@
 // gold gonad horseshoes round the stomach, the radial canals and the ring canal, warts of stinging cells, and eight rim
 // organs in the notches of the scalloped margin. A light wave runs base→rim on every contraction. Unshaded: she is
 // her own light and never changes hue with depth.
-// Her vitals live on the bell (DESIGN-TOPDOWN §2.5): the four gonad rings are her health, a quarter each (lit gold,
-// guttering to ember and dark as quarters go, the last one pulsing slowly when it is all she has left); the rim is her
+// Her vitals live on the bell (DESIGN-TOPDOWN §2.5): the four gonad rings are her health, a quarter each (warm gold,
+// fading out — ever more transparent — as their quarters go, the last one pulsing slowly when it is all she has
+// left); the rim is her
 // active pearl's charge, a light sweeping clockwise from the top of the screen, breathing gold when ready.
 //   UV: x runs apex (0) → margin (1), y is the angle (0..1). UV2: the bell's plan, unit disk.
 // The contraction (`pulse`) is matched on the CPU by BellView.MarginAt, which anchors the tentacles to the margin.
@@ -53,13 +54,13 @@ void fragment() {
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
 
 	// The four gonads: horseshoes round the stomach, open toward the centre — her health, a quarter each. Ring k holds
-	// the quarter from k/4 up; a full one glows warm gold, breathing with her pulse; a draining one gutters from ember
-	// to dark. When only the first is left it pulses slowly: a dying light at the centre of her.
-	float gonad = 0.0, gonad_fill = 0.0, gonad_dark = 0.0;
-	vec3 gonad_col = vec3(0.0);
+	// the quarter from k/4 up: always warm gold, breathing with her pulse, and as opaque as its quarter is full — a
+	// draining ring fades, an empty one is gone into the bell. When only the first is left its light pulses slowly in
+	// and out: a dying light at the centre of her.
+	float gonad = 0.0, gonad_fill = 0.0;
 	float critical = 1.0 - step(0.25, health);
-	float breath = 0.92 + 0.1 * pulse;
-	float dying = 0.3 + 0.7 * (0.5 + 0.5 * sin(TIME * 2.4));
+	vec3 gonad_col = mix(gold, vec3(1.0, 0.93, 0.8), 0.2) * (0.92 + 0.1 * pulse);
+	float dying = 0.25 + 0.75 * (0.5 + 0.5 * sin(TIME * 2.4));
 	for (int k = 0; k < 4; k++) {
 		float ka = 0.7853982 + float(k) * 1.5707963;
 		vec2 c = vec2(cos(ka), sin(ka)) * 0.33;
@@ -68,16 +69,9 @@ void fragment() {
 		float shape = line(length(d) - 0.14, 0.05) * open;
 		float fill = 1.0 - smoothstep(0.08, 0.15, length(d));
 		float lit = clamp(health * 4.0 - float(k), 0.0, 1.0);
-		vec3 ember = mix(vec3(0.18, 0.03, 0.02), vec3(0.9, 0.14, 0.04), smoothstep(0.0, 0.55, lit));
-		vec3 c_ring = mix(ember, gold * breath, smoothstep(0.55, 1.0, lit));
-		// Critical: the last ring is a slow dying light, from dark ember up to a bright orange glow and back.
-		if (k == 0) c_ring = mix(c_ring, mix(vec3(0.22, 0.04, 0.02), vec3(1.0, 0.5, 0.15), dying), critical);
-		float w = max(shape, fill * 0.25);
-		if (w > 0.0 && w >= max(gonad, gonad_fill * 0.25)) gonad_col = c_ring;
-		float shown = k == 0 ? max(smoothstep(0.0, 0.3, lit), critical * step(0.001, health)) : smoothstep(0.0, 0.3, lit);
-		gonad = max(gonad, shape * shown);
+		if (k == 0) lit *= mix(1.0, dying, critical);
+		gonad = max(gonad, shape * lit);
 		gonad_fill = max(gonad_fill, fill * lit);
-		gonad_dark = max(gonad_dark, shape * (1.0 - smoothstep(0.0, 0.3, lit)));
 	}
 	// The stomach: a soft cross at the centre.
 	float stomach = (1.0 - smoothstep(0.05, 0.16, r)) * 0.8;
@@ -140,7 +134,6 @@ void fragment() {
 	vec3 col = body * (0.55 + 0.25 * (1.0 - r));
 	col = mix(col, gold, stomach * 0.5);
 	col = mix(col, gonad_col, gonad_fill * 0.3);
-	col = mix(col, vec3(0.22, 0.05, 0.03), gonad_dark * 0.75);
 	col = mix(col, gonad_col, gonad);
 	col = mix(col, gold * 1.05, canals * 0.7 + ring * 0.6);
 	col = mix(col, vec3(1.0, 0.85, 0.7), warts * 0.45);
@@ -159,6 +152,6 @@ void fragment() {
 	col = mix(col, vec3(0.16, 0.08, 0.26) + fres * gold * 0.8, ink * 0.55);
 	ALBEDO = col * glow;
 
-	float a = 0.6 + 0.2 * r * r + fres * 0.45 + gonad * 0.35 + gonad_dark * 0.3 + rim_lit * 0.4 + canals * 0.2 + ring * 0.2 + margin * 0.15 + rho * 0.5 + warts * 0.15 + swell * 0.2;
+	float a = 0.6 + 0.2 * r * r + fres * 0.45 + gonad * 0.35 + rim_lit * 0.4 + canals * 0.2 + ring * 0.2 + margin * 0.15 + rho * 0.5 + warts * 0.15 + swell * 0.2;
 	ALPHA = clamp(a * (1.0 - ink * 0.4) + hurt * 0.2, 0.0, 0.96);
 }

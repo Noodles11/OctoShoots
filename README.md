@@ -35,7 +35,7 @@ From this folder, `godot.cmd` opens the editor with the real Godot .NET executab
 Arguments after `--`:
 - Level and run setup: `--seed=KELP7Q2Z`, `--cycle=`, `--depth=`, `--level=`, `--pearls=a,b`, `--hp=`, `--boss-hp=`,
   `--calm` (no creatures).
-- Where to start: `--at=start|arch|cave|exit|hole|shop|cache|treasure|ambush|mob|boss`.
+- Where to start: `--at=start|arch|cave|exit|hole|shop|cache|treasure|ambush|mob|boss|vase`.
 - Automation: `--autopilot` (swims the shortest route to the exit), `--dive` (dives whenever it can), `--fire`,
   `--use-active` (uses the active pearl whenever it is ready), `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.

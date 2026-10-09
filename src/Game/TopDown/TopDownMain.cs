@@ -35,6 +35,7 @@ public partial class TopDownMain : Node3D
     LevelId _id = LevelId.First;
     CombatView _combat = null!;
     CurrentView _currents = null!;
+    VaseView _vases = null!;
     BossView _boss = null!;
     PufferlingView _puffers = null!;
     BannerView _banner = null!;
@@ -147,6 +148,8 @@ public partial class TopDownMain : Node3D
         AddChild(_combat);
         _currents = new CurrentView();
         AddChild(_currents);
+        _vases = new VaseView();
+        AddChild(_vases);
         _boss = new BossView();
         AddChild(_boss);
         _puffers = new PufferlingView();
@@ -496,6 +499,7 @@ public partial class TopDownMain : Node3D
         SaveRun();
         _combat.Show(_world, _catalog);
         _currents.Clear();
+        _vases.Show(_world);
         _puffers.Show(_world);
         _combat.Visible = _boss.Visible = _puffers.Visible = true;
         _damage.Clear();
@@ -519,6 +523,8 @@ public partial class TopDownMain : Node3D
         _fullMap.Spotted = _spotted;
         _fullMap.Visited = _visited;
         _seedField.Text = _seed.ToString();
+        // The level's title, always on beside the clock (a new depth's first level names the depth too).
+        _hud.LevelTitle = _id.Level == 1 ? $"{ReefLook.For(_id.Depth).Name} · {_id}" : _id.ToString();
         GD.Print($"Top-down level {_seed} {_id}: attempt {_map.Attempt + 1}, {ms} ms, {_map.Pois.Count} POIs{(_map.HasBoss ? ", boss" : "")}, {_map.Canopies.Count} canopy pieces, {_map.Decor.Count} decor");
         _belowTask = Shape(LevelPlan.NextOf(_seed, _id), background: true);
     }
@@ -571,6 +577,8 @@ public partial class TopDownMain : Node3D
                 .FirstOrDefault(q => q is { } v && _world.Clear(v, 0.8f) && _world.LineOfSight(v, _map.Exit.Position)),
             "shop" => _map.Caves.Where(c => _map.Pois[c.Poi].Kind == PoiKind.Shop).Select(c => (System.Numerics.Vector2?)(c.Mouth - c.Facing * 1.5f)).FirstOrDefault(),
             "cache" => _map.Pois.Where(p => p.Kind == PoiKind.ShellCache).Select(p => (System.Numerics.Vector2?)p.Position).FirstOrDefault(),
+            // A few metres south of the first pot, in water that sees it.
+            "vase" => _world.Vases.Select(v => (System.Numerics.Vector2?)(v.Position + new System.Numerics.Vector2(0f, 4f))).FirstOrDefault(q => q is { } v && _world.Clear(v, 0.6f)),
             "ambush" => _map.Pois.Where(p => p.Kind == PoiKind.Ambush).Select(p => (System.Numerics.Vector2?)p.Position).FirstOrDefault(),
             "treasure" => _map.Caves.Where(c => _map.Pois[c.Poi].Kind == PoiKind.TreasureCave).Select(c => (System.Numerics.Vector2?)(c.Mouth - c.Facing * 2.5f)).FirstOrDefault(),
             "mob" => _world.Mobs.Select(m => (System.Numerics.Vector2?)(m.Position + new System.Numerics.Vector2(0f, 7f))).FirstOrDefault(q => q is { } v && _world.Clear(v, 0.6f)),
@@ -709,6 +717,12 @@ public partial class TopDownMain : Node3D
                 }
                 else if (e.Type == PlaneEventType.ActiveUsed) _combat.ActiveUsed(_world);
                 else if (e.Type == PlaneEventType.ShieldBlocked) _bell.ShieldRipple();
+                else if (e.Type == PlaneEventType.VaseHit) _vases.Hit(_world, e.Position, e.Direction);
+                else if (e.Type == PlaneEventType.VaseBroken)
+                {
+                    _vases.Break(_world, e.Position, e.Direction);
+                    _camera.Shake(0.1f);
+                }
                 else if (e.Type == PlaneEventType.ActiveDenied) Say("Already at full health");
                 else if (e.Type == PlaneEventType.BossLanded) _camera.Shake(0.9f);
                 else if (e.Type == PlaneEventType.BossStagger) _camera.Shake(0.45f);
@@ -739,6 +753,7 @@ public partial class TopDownMain : Node3D
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
         _currents.Sync(_world, dt);
+        _vases.Sync(dt);
         _puffers.Sync(_world, dt);
         _damage.Tick(dt);
         _boss.Sync(_world, dt);
@@ -756,6 +771,7 @@ public partial class TopDownMain : Node3D
         var p = _world.Player;
         _debugMap.SetPlayer(_world.Player.Position);
         _minimap.Track(p.Position, p.Velocity);
+        _minimap.SetHealth(_world.Run.MaxHp > 0f ? p.Hp / _world.Run.MaxHp : 0f);
         // Lantern Pearl: a brighter glow shows more of the level around her.
         float glow = _world.Run.Loadout.Stats[Stat.Glow];
         _fog.Reveal(p.Position, MinimapView.RevealRadius * (1f + 0.5f * (glow - 1f)), MinimapView.RevealSoft);
@@ -889,12 +905,11 @@ public partial class TopDownMain : Node3D
         EnterLevel(map, keepRun: true, 0, arrived);
         foreach (var view in LevelLife) ResetFade(view);
         Route();
-        Say(_id.Level == 1 ? $"{ReefLook.For(_id.Depth).Name} · {_id}" : _id.ToString());
         if (_captureDir is not null) GD.Print($"Dive finishes at frame {_frame}");
     }
 
     /// <summary>The views of a level's life: its creatures, pickups and shots, Queen Clam, damage numbers, currents.</summary>
-    IEnumerable<Node> LevelLife => new Node[] { _combat, _puffers, _boss, _damage, _currents };
+    IEnumerable<Node> LevelLife => new Node[] { _combat, _puffers, _boss, _damage, _currents, _vases };
 
     /// <summary>
     /// Fades the old level's life during the dive: each piece fades out over a few metres as the iris's dissolving edge
@@ -1074,7 +1089,6 @@ public partial class TopDownMain : Node3D
                 }
                 else
                 {
-                    Say(_id.ToString());
                     _transition = Transition.FadingOut;
                     _transitionTime = 0f;
                 }
@@ -1207,7 +1221,9 @@ public partial class TopDownMain : Node3D
         if (!_autoFire) return false;
         var from = _world.Player.Position;
         System.Numerics.Vector2? target = _world.Boss is { Stage: BossStage.Fight } queen ? queen.Position
-            : _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, from)).Select(m => (System.Numerics.Vector2?)m.Position).FirstOrDefault();
+            : _world.Mobs.Where(m => m.Alive).OrderBy(m => System.Numerics.Vector2.Distance(m.Position, from)).Select(m => (System.Numerics.Vector2?)m.Position).FirstOrDefault()
+              // With no creature to shoot, the nearest standing pot.
+              ?? _world.Vases.Where(v => !v.Broken).OrderBy(v => System.Numerics.Vector2.Distance(v.Position, from)).Select(v => (System.Numerics.Vector2?)v.Position).FirstOrDefault();
         if (target is not { } at || System.Numerics.Vector2.DistanceSquared(at, from) < 1e-4f) return false;
         input.Aim = System.Numerics.Vector2.Normalize(at - from);
         // With Pearl Diver, let go once the pearl is fully charged.
