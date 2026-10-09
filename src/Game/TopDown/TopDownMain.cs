@@ -329,8 +329,12 @@ public partial class TopDownMain : Node3D
         layer.AddChild(_banner);
         _minimap = new MinimapView();
         layer.AddChild(_minimap);
-        // Tab: the whole level on one sheet.
-        _fullMap = new TopoMap { Visible = OS.GetCmdlineUserArgs().Contains("--map"), ShowLegend = true, MetresAcross = LevelMap.Size + 4f, ContourInterval = 1f };
+        // Tab: the whole level on one sheet, drawn by the minimap's rules (wall edges, fog, places only once spotted).
+        _fullMap = new TopoMap
+        {
+            Visible = OS.GetCmdlineUserArgs().Contains("--map"), ShowLegend = true, MetresAcross = LevelMap.Size + 4f,
+            ShowDetail = false, EdgesOnly = true, ArrowScale = 1.3f, ArrowColor = new Color(1f, 0.72f, 0.35f),
+        };
         layer.AddChild(_fullMap);
         // ESC: pause, restart the run, see the pearls she has absorbed. Drawn above the rest of the HUD.
         var pauseLayer = new CanvasLayer { Layer = 5 };
@@ -497,7 +501,12 @@ public partial class TopDownMain : Node3D
         _fog.Reset();
         _spotted.Clear();
         _minimap.SetFog(_fog, _spotted);
+        // No mud cloud until this level's boss raises one.
+        _minimap.SetMud(default, 0f, 0f);
+        _fullMap.Mud = default;
+        _fullMap.Fog = _fog;
         _fullMap.Seen = _fog;
+        _fullMap.Spotted = _spotted;
         _fullMap.Visited = _visited;
         _seedField.Text = _seed.ToString();
         GD.Print($"Top-down level {_seed} {_id}: attempt {_map.Attempt + 1}, {ms} ms, {_map.Pois.Count} POIs{(_map.HasBoss ? ", boss" : "")}, {_map.Canopies.Count} canopy pieces, {_map.Decor.Count} decor");
@@ -702,7 +711,11 @@ public partial class TopDownMain : Node3D
         _damage.Tick(dt);
         _boss.Sync(_world, dt);
         if (!OS.GetCmdlineUserArgs().Contains("--dbg-nobanner")) _banner.Sync(_world.Boss);
-        if (_world.Boss is { } b) _minimap.SetMud(_world.ArenaCenter, _world.ArenaRadius, b.Cloud);
+        if (_world.Boss is { } b)
+        {
+            _minimap.SetMud(_world.ArenaCenter, _world.ArenaRadius, b.Cloud);
+            _fullMap.Mud = new Vector4(_world.ArenaCenter.X, _world.ArenaCenter.Y, _world.ArenaRadius, b.Cloud);
+        }
         _hud.Elapsed = _elapsed;
         _hud.Track(_world, _catalog, dt);
         _camera.Track(Focus(alpha), dt);

@@ -133,9 +133,9 @@ public partial class TopoMap : Control
         float ppm = PixelsPerMetre;
         var font = ThemeDB.FallbackFont;
 
-        // Boulders and bommies as the little squares of a survey map.
+        // Boulders and bommies as the little squares of a survey map; under fog of war only once seen.
         foreach (var d in map.Decor)
-            if (d.Kind is DecorKind.Boulder or DecorKind.Bommie)
+            if (d.Kind is (DecorKind.Boulder or DecorKind.Bommie) && (Fog is null || Fog.At(d.Position) > 0.5f))
             {
                 float s = d.Kind == DecorKind.Bommie ? 4f : 2.5f;
                 DrawRect(new Rect2(P(d.Position) - Vector2.One * s * 0.5f, Vector2.One * s), Pebble);
