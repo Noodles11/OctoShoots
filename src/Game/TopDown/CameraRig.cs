@@ -48,12 +48,17 @@ public partial class CameraRig : Node3D
     /// <summary>The absolute position of the world's origin (the god rays and the beneath-layer follow it).</summary>
     public void SetWorldOrigin(Vector2 origin) => _post.SetShaderParameter("world_origin", origin);
 
-    /// <summary>Moves the camera with the world, keeping the view exactly as it was.</summary>
+    /// <summary>Moves the camera with the world, keeping the view exactly as it was (her halo in the water too).</summary>
     public void Shift(Vector3 by)
     {
         _focus += by;
         Camera.GlobalPosition += by;
+        _player += by;
+        _post.SetShaderParameter("player_pos", _player);
     }
+
+    /// <summary>The point her halo in the water is centred on (the last followed point).</summary>
+    Vector3 _player;
 
     /// <summary>The reduced-motion setting: no refraction wobble in the water.</summary>
     public void SetReducedMotion(bool reduced) => _post.SetShaderParameter("wobble", reduced ? 0f : 1f);
@@ -97,6 +102,7 @@ public partial class CameraRig : Node3D
         _shake = Mathf.MoveToward(_shake, 0f, dt * 1.6f);
         Vector3 jolt = _shake > 0f ? new Vector3(Mathf.Sin(_shakeTime * 53f), Mathf.Sin(_shakeTime * 61f + 1f), Mathf.Sin(_shakeTime * 47f + 2f)) * _shake * _shake : Vector3.Zero;
         Camera.GlobalTransform = new Transform3D(Basis.FromEuler(new Vector3(-tilt, 0f, 0f)), _focus + offset + jolt);
+        _player = focus;
         _post.SetShaderParameter("player_pos", focus);
     }
 }

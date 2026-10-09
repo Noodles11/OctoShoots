@@ -34,12 +34,13 @@ public partial class TopDownMain : Node3D
     /// <summary>The level she is on: one hole leads down to the next (LevelPlan.NextOf).</summary>
     LevelId _id = LevelId.First;
     CombatView _combat = null!;
+    CurrentView _currents = null!;
     BossView _boss = null!;
     PufferlingView _puffers = null!;
     BannerView _banner = null!;
     float? _bossHp;
     /// <summary>Verification: fire at the nearest mob; start the run with these pearls.</summary>
-    bool _autoFire, _autoActive, _startPaused;
+    bool _autoFire, _autoActive, _dbgSurge, _startPaused;
     float? _startHp;
     string[] _startPearls = Array.Empty<string>();
     HudView _hud = null!;
@@ -136,6 +137,7 @@ public partial class TopDownMain : Node3D
         // Keep the GPU cool: the frame-rate cap from the view options (60 by default; captures run uncapped).
         var view = _view = SettingsStore.LoadView();
         Engine.MaxFps = _captureDir is null ? view.MaxFps : 0;
+        if (_captureDir is not null) RenderingServer.ViewportSetMeasureRenderTime(GetViewport().GetViewportRid(), true);
         BuildEnvironment();
         _level = new LevelView();
         AddChild(_level);
@@ -143,6 +145,8 @@ public partial class TopDownMain : Node3D
         AddChild(_bell);
         _combat = new CombatView();
         AddChild(_combat);
+        _currents = new CurrentView();
+        AddChild(_currents);
         _boss = new BossView();
         AddChild(_boss);
         _puffers = new PufferlingView();
@@ -184,6 +188,7 @@ public partial class TopDownMain : Node3D
             else if (arg.StartsWith("--boss-hp=") && float.TryParse(Value("--boss-hp="), NumberStyles.Float, CultureInfo.InvariantCulture, out float bhp)) _bossHp = bhp;
             else if (arg == "--fire") _autoFire = true;
             else if (arg == "--use-active") _autoActive = true;
+            else if (arg == "--dbg-surge") _dbgSurge = true;
             else if (arg.StartsWith("--dbg-slowmo=") && float.TryParse(Value("--dbg-slowmo="), NumberStyles.Float, CultureInfo.InvariantCulture, out float slow))
                 Engine.TimeScale = Math.Clamp(slow, 0.02f, 1f);
             else if (arg == "--paused") _startPaused = true;
@@ -434,6 +439,7 @@ public partial class TopDownMain : Node3D
         DropBelow();
         _origin = Vector2.Zero;
         _camera.SetWorldOrigin(_origin);
+        _snow.SetWorldOrigin(_origin);
         _level.Show(shape);
         _level.Place(Vector3.Zero, _origin);
         EnterLevel(shape.Map, keepRun, ms);
@@ -485,9 +491,11 @@ public partial class TopDownMain : Node3D
             _world.Mobs.Clear();
             _world.Ambushes.Clear();
         }
+        if (_dbgSurge) InjectSurge();
         _recorder.EnterLevel(_world, _id);
         SaveRun();
         _combat.Show(_world, _catalog);
+        _currents.Clear();
         _puffers.Show(_world);
         _combat.Visible = _boss.Visible = _puffers.Visible = true;
         _damage.Clear();
@@ -589,8 +597,29 @@ public partial class TopDownMain : Node3D
 
     string? _follow = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--dbg-follow="))?["--dbg-follow=".Length..];
 
+    Vector2 _renderSizeFor;
+
+    /// <summary>
+    /// On a big window the 3D scene renders at about the pixel count of a 16:9 screen MaxRenderHeight tall and FSR
+    /// upscales it (the reef's water blur hides the difference); the HUD draws at full size. Rechecked when the window
+    /// changes size.
+    /// </summary>
+    void CapRenderScale()
+    {
+        var vp = GetViewport();
+        var size = vp.GetVisibleRect().Size;
+        if (size == _renderSizeFor) return;
+        _renderSizeFor = size;
+        float budget = _view.MaxRenderHeight * _view.MaxRenderHeight * 16f / 9f;
+        float scale = _view.MaxRenderHeight <= 0 || size.X * size.Y <= budget ? 1f : Mathf.Sqrt(budget / (size.X * size.Y));
+        vp.Scaling3DMode = scale < 1f ? Viewport.Scaling3DModeEnum.Fsr : Viewport.Scaling3DModeEnum.Bilinear;
+        vp.Scaling3DScale = scale;
+        vp.FsrSharpness = 0.4f;
+    }
+
     public override void _Process(double delta)
     {
+        CapRenderScale();
         if (_world is null)
         {
             if (_firstMap is { IsCompleted: true } first)
@@ -709,6 +738,7 @@ public partial class TopDownMain : Node3D
 
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
+        _currents.Sync(_world, dt);
         _puffers.Sync(_world, dt);
         _damage.Tick(dt);
         _boss.Sync(_world, dt);
@@ -766,8 +796,8 @@ public partial class TopDownMain : Node3D
         _lookTo = ReefLook.For(next.Depth);
         _bell.Kick();
         _hud.Diving = true;
-        // The level's life stays behind: only she goes down.
-        _combat.Visible = _boss.Visible = _puffers.Visible = false;
+        if (_captureDir is not null) GD.Print($"Dive begins at frame {_frame}");
+        // The level's life stays behind (only she goes down): it fades out with the iris (FadeLevelLife).
         _banner.Visible = false;
     }
 
@@ -796,7 +826,9 @@ public partial class TopDownMain : Node3D
         _bell.Sync(_world, 1f, dt);
 
         var focus = new Vector3(_diveFrom.X, LevelMap.SwimBand - drop, _diveFrom.Y);
-        _camera.Zoom = 1f - 0.35f * Mathf.Sin(Mathf.Pi * k);
+        // In and back out, easing to rest at both ends (sin²): the view is still when the world is moved back.
+        float pull = Mathf.Sin(Mathf.Pi * k);
+        _camera.Zoom = 1f - 0.35f * pull * pull;
         _camera.Track(focus, dt);
         _camera.SetSwimLevel(-drop);
         var look = _lookFrom == _lookTo ? _lookFrom : ReefLook.Blend(_lookFrom, _lookTo, sink);
@@ -806,9 +838,19 @@ public partial class TopDownMain : Node3D
 
         // The iris: the level above is cut away from the hole outward; the level below shows inside the same ring.
         var hole = new Vector2(_map.Exit.Position.X, _map.Exit.Position.Y);
-        float radius = Mathf.Lerp(6f, 150f, Mathf.Pow(Ease((t - 0.35f) / 0.9f), 2f));
+        // It opens from nothing (its dissolving edge reaches 3 m past the radius) to the shaft's width as she gathers,
+        // then sweeps outward.
+        float radius = t < 0.35f ? Mathf.Lerp(-3f, 6f, Ease(t / 0.35f)) : Mathf.Lerp(6f, 150f, Mathf.Pow(Ease((t - 0.35f) / 0.9f), 2f));
         _level.SetPortal(hole, radius, 1);
         _below?.SetPortal(hole, Mathf.Max(radius, Stamp.Pin), 2);
+        // What lived on the level above goes with it: each piece as the iris's edge passes, the rest with the descent;
+        // the Crack's glow, light and bubbles fade as she sinks through it. All gone before the level is let go.
+        float stay = 1f - Ease((t - 0.3f) / 1.0f);
+        // The fading edge grows out from the shaft over the first half second (what sits over it does not just vanish),
+        // then follows the iris.
+        FadeLevelLife(hole, Mathf.Lerp(-5f, radius, Ease(t / 0.45f)), stay);
+        _level.FadeCrack(stay);
+        _damage.Tick(dt);
         _hud.Elapsed = _elapsed;
         _hud.Track(_world, _catalog, dt);
         if (_diveTime >= DiveSeconds && _below is not null) FinishDive();
@@ -833,6 +875,7 @@ public partial class TopDownMain : Node3D
         _level.Promote(_origin);
         _camera.Shift(shift);
         _camera.SetWorldOrigin(_origin);
+        _snow.SetWorldOrigin(_origin);
         _camera.SetSwimLevel(0f);
         _camera.Zoom = 1f;
         _snow.Shift(shift);
@@ -844,8 +887,61 @@ public partial class TopDownMain : Node3D
         _diving = false;
         _id = LevelPlan.NextOf(_seed, _id);
         EnterLevel(map, keepRun: true, 0, arrived);
+        foreach (var view in LevelLife) ResetFade(view);
         Route();
         Say(_id.Level == 1 ? $"{ReefLook.For(_id.Depth).Name} · {_id}" : _id.ToString());
+        if (_captureDir is not null) GD.Print($"Dive finishes at frame {_frame}");
+    }
+
+    /// <summary>The views of a level's life: its creatures, pickups and shots, Queen Clam, damage numbers, currents.</summary>
+    IEnumerable<Node> LevelLife => new Node[] { _combat, _puffers, _boss, _damage, _currents };
+
+    /// <summary>
+    /// Fades the old level's life during the dive: each piece fades out over a few metres as the iris's dissolving edge
+    /// passes over it (as the reef under it does), and whatever is left fades with <paramref name="stay"/> (1 → 0), so
+    /// nothing is switched off in one frame. It only ever fades further.
+    /// </summary>
+    void FadeLevelLife(Vector2 hole, float radius, float stay)
+    {
+        foreach (var view in LevelLife) FadeTree(view, hole, radius, stay);
+    }
+
+    static void FadeTree(Node node, Vector2 hole, float radius, float stay)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is GeometryInstance3D g && g.IsInsideTree())
+            {
+                var p = g.GlobalPosition;
+                float keep = Mathf.Clamp((new Vector2(p.X, p.Z).DistanceTo(hole) - (radius - 3f)) / 5f, 0f, 1f) * stay;
+                g.Transparency = Mathf.Max(g.Transparency, 1f - keep);
+                // Fading, it casts no shadow on the level below (a faded clam must not leave hers behind).
+                if (g.Transparency > 0f && g.CastShadow != GeometryInstance3D.ShadowCastingSetting.Off)
+                {
+                    g.SetMeta("dive_shadow", (int)g.CastShadow);
+                    g.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+                }
+            }
+            FadeTree(child, hole, radius, stay);
+        }
+    }
+
+    /// <summary>A new level's life is drawn whole again.</summary>
+    static void ResetFade(Node node)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is GeometryInstance3D g)
+            {
+                g.Transparency = 0f;
+                if (g.HasMeta("dive_shadow"))
+                {
+                    g.CastShadow = (GeometryInstance3D.ShadowCastingSetting)(int)g.GetMeta("dive_shadow");
+                    g.RemoveMeta("dive_shadow");
+                }
+            }
+            ResetFade(child);
+        }
     }
 
     /// <summary>Adds the level she is leaving to the run's totals.</summary>
@@ -1036,6 +1132,21 @@ public partial class TopDownMain : Node3D
         if (!OS.GetCmdlineUserArgs().Contains("--map")) _fullMap.Visible = Input.IsPhysicalKeyPressed(Key.Tab) && !typing;
     }
 
+    /// <summary>Verification (`--dbg-surge`): a full-strength surge through the canyon she is in, a second into the level.</summary>
+    void InjectSurge()
+    {
+        int best = -1;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < _map.Corridors.Count; i++)
+        {
+            if (_map.Corridors[i].Kind is not (CorridorKind.Main or CorridorKind.Side)) continue;
+            ReefDirector.Nearest(_map.Corridors[i], _world.Player.Position, out float d, out _);
+            if (d < bestDist) (best, bestDist) = (i, d);
+        }
+        if (best >= 0)
+            _world.Director.Inject(new ReefEvent { Kind = ReefEventKind.CurrentSurge, Start = 1f, Duration = ReefDirectorTuning.SurgeSeconds, Corridor = best, Speed = ReefDirectorTuning.SurgeSpeedMax });
+    }
+
     PlaneInput ReadInput()
     {
         var input = new PlaneInput();
@@ -1125,7 +1236,9 @@ public partial class TopDownMain : Node3D
         string path = $"{_captureDir}/td_{frame:0000}.png";
         GetViewport().GetTexture().GetImage().SavePng(path);
         var p = _world.Player.Position;
-        GD.Print(string.Format(CultureInfo.InvariantCulture, "Captured {0}  pos {1:0.0},{2:0.0}  canopy {3}  {4:0} FPS  sim {5:0.00} s", path, p.X, p.Y, _map.CanopyAt(p), Engine.GetFramesPerSecond(), _elapsed));
+        var vp = GetViewport().GetViewportRid();
+        GD.Print(string.Format(CultureInfo.InvariantCulture, "Captured {0}  pos {1:0.0},{2:0.0}  canopy {3}  {4:0} FPS  gpu {6:0.0} ms  {7}  sim {5:0.00} s", path, p.X, p.Y, _map.CanopyAt(p), Engine.GetFramesPerSecond(), _elapsed,
+            RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp), GetViewport().GetVisibleRect().Size));
         if (_captureFrames.Count == 0) GetTree().Quit();
     }
 }

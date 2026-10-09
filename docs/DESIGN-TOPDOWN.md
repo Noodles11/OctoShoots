@@ -512,18 +512,54 @@ levels: ~5–7 min rushed, ~30 min explored.
   a hard stroke turns her head-first and she sinks the 8 m down the shaft in
   three pulses, tentacles streaming up, then rights herself and settles. The
   camera falls with her and pulls in (to about two-thirds of its distance at
-  the middle of the dive); the level above opens like an iris from the hole
-  outward, revealing the level below inside the same ring; the depth focus, the
-  sea surface and the beneath-layer sink with her; through the Crack, the next
-  depth's look blends in. If the level below is not made yet, she holds at the
-  lip of the shaft until it is.
-- **Arrival:** the level below becomes the level and the whole world moves back
-  to the origin in one frame — camera, marine snow, her tentacles with it — so
-  nothing on screen moves. Each level draws its patterns (sand, rock, caustics,
-  flora sway, god rays, the beneath-layer) from a fixed absolute origin, so
-  they do not move either (`level_frame.gdshaderinc`). The run autosaves.
+  the middle of the dive), easing in and back out so it is still at the end;
+  the level above opens like an iris from the hole outward — from nothing, to
+  the shaft's width as she gathers, then sweeping out — revealing the level
+  below inside the same ring; the depth focus, the sea surface and the
+  beneath-layer sink with her; through the Crack, the next depth's look blends
+  in. The level's life stays behind: its creatures, pickups, shots, damage
+  numbers and currents (and Queen Clam) fade out as the iris's dissolving edge
+  passes over them, the rest with the descent, casting no shadow once fading;
+  the Crack's glow, light and rising bubbles fade as she sinks through it.
+  Nothing is switched off in one frame. If the level below is not made yet,
+  she holds at the lip of the shaft until it is.
+- **Arrival — seamless, no cut:** the level below becomes the level and the
+  whole world moves back to the origin in one frame — camera, marine snow, her
+  bell and tentacles, her glow on the floor and her halo in the water, all
+  moved and drawn at their new places in that same frame — so nothing on screen
+  moves. Each level draws its patterns (sand, rock, caustics, flora sway, god
+  rays, the beneath-layer, the specks' glitter) from a fixed absolute origin,
+  and its sunlight from its true height under the sea surface (which sank with
+  her), so they do not move either (`level_frame.gdshaderinc`). The run
+  autosaves.
 
 ---
+
+### 4.7 The reef director — the world acts without her
+A level is not a stage that waits for the actor. A seeded **reef director**
+(`ReefDirector`, Core/Plane) fires world events on its own timers, whether
+Clementine is near or not. At level build it draws a schedule from the run's
+`events/{cycle}/{depth}/{level}` stream into a priority queue of (time, event),
+20 minutes ahead; the sim pops events as the level's clock reaches them.
+Deterministic and cheap: the same level always schedules the same events.
+
+- **Current surges** (the first event kind). The first comes 20–40 s into the
+  level, each next one 25–50 s after the last has ended (never two at once).
+  A surge runs through one canyon (a main route or a side passage; never a
+  spur), one way along its course, for **20 s**: it begins slow and
+  accelerates (eased over 5 s), holds its force, and decelerates over the last
+  5 s. At full strength the flow is 3–4.5 m/s (her cruise is 6: she can swim
+  against it, slowly). It changes a fight's geometry mid-encounter.
+  - **Felt in the canyon:** inside the canyon's channel the flow pushes at full
+    strength, fading to nothing 2 m past its walls. It carries everything not
+    fixed to the reef — Clementine, pufferlings (mobs and healthy ones), every
+    shot (her bubbles, needles, Queen Clam's pearls), shells, hearts, loose
+    pearls, ink clouds — the swimmers sliding along rock as they go. Shop stands
+    and Queen Clam hold fast.
+  - **Seen beyond it:** pale streaks of moving water race down the canyon and
+    spill up to 5 m past its walls, where the current is only cosmetic. They
+    appear as the surge builds (the warning), race at full strength, and thin
+    out as it eases off.
 
 ## 5. Lighting & Atmosphere — the core pillar
 
@@ -926,6 +962,10 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
     - a backup save code to copy, or to import after a preview;
     - erasing everything (type ERASE).
   - **Settings:** frame-rate cap, sunlight, camera shake, reduced motion; the controls, read-only.
+  - **Keeping the GPU cool on big screens:** the 3D scene renders with at most a 1080p screen's worth of pixels
+    (view option MaxRenderHeight, 0 = native) and FSR upscales it to the window; the HUD draws at full size. The
+    reef's skin works out only the looks a pixel shows (sand, rock or coral garden), not all three. Measured on a
+    3840-wide window: about 12–25 ms of GPU a frame before, 3–5 ms after.
   - **Motion.** Sub-screens are pearl cards that surface from the bottom right and dive away, and starting a run
     fades into the loading splash.
   - **The interface** is laid out on a 1600×900 page and scaled to the window.

@@ -16,6 +16,11 @@ public sealed class ViewOptions
     [Tune("View", 10f, 80f)] public float MinimapRange = 32f;
     /// <summary>Frame-rate cap (0 = uncapped). Keeps the GPU cool; vsync caps it further on slower screens.</summary>
     [Tune("View", 0f, 240f)] public int MaxFps = 60;
+    /// <summary>
+    /// The 3D scene renders with at most this many lines' worth of pixels (a 16:9 screen this tall), upscaled with FSR
+    /// to the window; the HUD stays sharp. Keeps big screens cool (0 = always native).
+    /// </summary>
+    [Tune("View", 0f, 2160f)] public int MaxRenderHeight = 1080;
     /// <summary>Strength of sunlight under water: god rays, caustics and dappled light (0 turns them off).</summary>
     [Tune("Light", 0f, 2f)] public float SunLight = 1f;
 }

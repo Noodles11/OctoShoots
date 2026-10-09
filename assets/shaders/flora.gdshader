@@ -56,6 +56,8 @@ void vertex() {
 	tint = INSTANCE_CUSTOM.rgb;
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	sun_world = lf_pattern(lf_local(world_pos));
+	// The true height, so the light does not jump when the dive moves the level below up to the swim level.
+	sun_world.y = world_pos.y;
 	// Small things: sunlight is worked out per vertex, which is plenty and far cheaper.
 	vec3 sun_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	float sun_face = 0.35 + 0.65 * clamp(dot(sun_n, -normalize(sun_dir)), 0.0, 1.0);

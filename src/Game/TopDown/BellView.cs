@@ -158,9 +158,14 @@ public partial class BellView : Node3D
         _amp = 1f;
     }
 
-    /// <summary>Moves her with the world (the dive moves the new level back to the origin): her trailing strands too.</summary>
+    /// <summary>
+    /// Moves her with the world (the dive moves the new level back to the origin): the bell and her trailing strands,
+    /// redrawn at once, so the frame that moves the world shows her where she is (no frame drawn at the old place).
+    /// </summary>
     public void Shift(Vector3 by)
     {
+        Position += by;
+        RenderingServer.GlobalShaderParameterSet("her_glow", new Vector4(GlobalPosition.X, GlobalPosition.Y, GlobalPosition.Z, _glowRadius));
         foreach (var s in _strands)
         {
             for (int i = 0; i < s.Pos.Length; i++)
@@ -172,13 +177,26 @@ public partial class BellView : Node3D
             s.LastAnchor += by;
         }
         _lastCentre += by;
+        var camera = GetViewport().GetCamera3D();
+        if (camera != null) DrawStrands(camera.GlobalPosition);
     }
+
+    /// <summary>The player she was last drawn for: a new level brings a new one, and its timers start afresh.</summary>
+    PlaneBody? _drawnFor;
 
     public void Sync(PlaneWorld world, float alpha, float dt)
     {
         _time += dt;
         float h = Mathf.Min(dt, 0.05f);
         var p = world.Player;
+        // A new level's body: its jet, dash and hurt timers start from zero, which must not read as a stroke or a hit.
+        if (!ReferenceEquals(p, _drawnFor))
+        {
+            _drawnFor = p;
+            _lastJet = p.JetTimer;
+            _lastDash = p.DashTimer;
+            _lastHurt = p.HurtTimer;
+        }
         var at = System.Numerics.Vector2.Lerp(p.PrevPosition, p.Position, alpha);
         var vel = new Vector2(p.Velocity.X, p.Velocity.Y);
         float speed = vel.Length();
@@ -252,9 +270,12 @@ public partial class BellView : Node3D
     {
         float glow = world.Run.Loadout.Stats[OctoShoots.Core.Items.Stat.Glow];
         var at = GlobalPosition;
-        RenderingServer.GlobalShaderParameterSet("her_glow", new Vector4(at.X, at.Y, at.Z, 3f * Mathf.Sqrt(Mathf.Max(glow, 0.1f))));
+        _glowRadius = 3f * Mathf.Sqrt(Mathf.Max(glow, 0.1f));
+        RenderingServer.GlobalShaderParameterSet("her_glow", new Vector4(at.X, at.Y, at.Z, _glowRadius));
         RenderingServer.GlobalShaderParameterSet("her_glow_strength", (1f - DiveTurn) * (0.9f + 0.1f * _pulse));
     }
+
+    float _glowRadius = 3f;
 
     public override void _ExitTree() => RenderingServer.GlobalShaderParameterSet("her_glow_strength", 0f);
 

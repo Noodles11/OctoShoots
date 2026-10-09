@@ -415,7 +415,7 @@ public partial class LevelView : Node3D
         if (!map.HasBoss) return;
         var rift = map.Exit.Position;
         var floor = new Vector3(rift.X, -6f, rift.Y);
-        AddChild(new OmniLight3D
+        AddChild(_crackLight = new OmniLight3D
         {
             Position = floor + Vector3.Up * 2.5f,
             LightColor = new Color(1f, 0.5f, 0.18f),
@@ -425,7 +425,7 @@ public partial class LevelView : Node3D
             ShadowEnabled = false,
         });
         var bubble = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") };
-        AddChild(new CpuParticles3D
+        AddChild(_crackBubbles = new CpuParticles3D
         {
             Position = floor,
             Amount = 36,
@@ -443,6 +443,21 @@ public partial class LevelView : Node3D
             ScaleAmountMax = 1.6f,
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
+    }
+
+    OmniLight3D? _crackLight;
+    CpuParticles3D? _crackBubbles;
+
+    /// <summary>
+    /// The dive through the Crack: its glow, its warm light and its rising bubbles fade together (1 full, 0 gone), so
+    /// nothing of it is switched off when this level is let go.
+    /// </summary>
+    public void FadeCrack(float k)
+    {
+        if (!_map.HasBoss) return;
+        RenderingServer.GlobalShaderParameterSet("reef_crack", new Vector4(_map.Exit.Position.X, _map.Exit.Position.Y, 10f, k));
+        if (_crackLight is not null) _crackLight.LightEnergy = 2.2f * k;
+        _crackBubbles?.SetInstanceShaderParameter("fade", k);
     }
 
     // ───────────────────────── places ─────────────────────────

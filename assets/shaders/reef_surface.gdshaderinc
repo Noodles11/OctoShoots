@@ -170,15 +170,18 @@ ReefSkin reef_surface(vec3 local, vec3 n, float time, float px) {
 	// Height relative to the swim level (0): the seabed lies at about -1, the walls rise above 0.
 	float h = local.y;
 
-	vec3 nn = n;
-	vec3 sand = rs_sand(w, nn, px);
-	vec3 rock = rs_rock(w, n);
-	vec3 gn = n;
-	vec3 garden = rs_garden(w, gn);
-
 	// Sand on the flat seabed (and a little way up the foot of the walls); gardens on flat tops; rock elsewhere.
+	// The weights come first, and each look is worked out only where it shows (most pixels need just one): the
+	// three noise stacks are the reef's main cost on a big screen.
 	float sandK = smoothstep(0.72, 0.92, up) * (1.0 - smoothstep(-0.4, 0.5 + rs_noise(w * 0.3) * 0.8, h));
-	float gardenK = smoothstep(0.55, 0.85, up) * smoothstep(1.2, 2.6, h) * smoothstep(0.3, 0.5, rs_fbm(w * 0.18 + 7.0));
+	float gardenK = smoothstep(0.55, 0.85, up) * smoothstep(1.2, 2.6, h);
+	if (gardenK > 0.0 && sandK < 0.999) gardenK *= smoothstep(0.3, 0.5, rs_fbm(w * 0.18 + 7.0));
+	else gardenK = 0.0;
+	vec3 nn = n;
+	vec3 sand = sandK > 0.001 ? rs_sand(w, nn, px) : vec3(0.0);
+	vec3 rock = (1.0 - gardenK) * (1.0 - sandK) > 0.001 ? rs_rock(w, n) : vec3(0.0);
+	vec3 gn = n;
+	vec3 garden = gardenK * (1.0 - sandK) > 0.001 ? rs_garden(w, gn) : vec3(0.0);
 	vec3 c = mix(rock, garden, gardenK);
 	float apron = (1.0 - smoothstep(0.8, 0.97, up)) * sandK;
 	sand = mix(sand, sand * mix(vec3(0.72), reef_algae * 1.1, 0.4), apron);
@@ -201,7 +204,11 @@ ReefSkin reef_surface(vec3 local, vec3 n, float time, float px) {
 	// Caustics on everything facing up (sharp near the surface, softer and fainter below). They are sunlight, so the
 	// light() pass adds them only where the sun reaches: the walls' shade cuts them off.
 	float face = pow(clamp(s.normal.y, 0.0, 1.0), 1.4);
-	s.caustic = sun_caustics(w, time) * reef_caustics * light_strength * face;
+	// The light's path is measured from the surface at the point's true height (the level's own height plus where the
+	// level sits now): during the dive the sea surface sinks with her, so the light on the level below is already what
+	// it will be once that level becomes the level — nothing jumps when the world is moved back.
+	vec3 lit_at = vec3(w.x, local.y + level_offset.y, w.z);
+	s.caustic = sun_caustics(lit_at, time) * reef_caustics * light_strength * face;
 	s.emission = vec3(0.0);
 
 	// The Crack: an orange glow breathing up out of the deepest fissure (only on the level it belongs to).

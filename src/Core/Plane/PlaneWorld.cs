@@ -60,6 +60,7 @@ public sealed class PlaneInk
 
 public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, HeartCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
     ChargeFull, InkBlast, ShieldBlocked, ActiveUsed, ActiveNotReady, ActiveDenied,
+    SurgeStarted, SurgeEnded,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
 /// <summary>What hurt Clementine (the killing blow names what ended a run).</summary>
@@ -95,6 +96,7 @@ public sealed partial class PlaneWorld
         Player.Hp = Run.Hp;
         _rocks = new List<WeakRock>(map.WeakRocks);
         _bubbleRng = new Rng(map.Seed ^ 0xB0BB1EUL ^ ((ulong)map.Level << 24) ^ ((ulong)map.Depth << 32) ^ ((ulong)map.Attempt << 48));
+        Director = new ReefDirector(map);
         PlaceMobs();
         PlaceFish();
         PlacePearls();
@@ -107,6 +109,10 @@ public sealed partial class PlaneWorld
     public LevelMap Map { get; }
     public Tuning Tuning { get; set; }
     public long Tick { get; private set; }
+    /// <summary>Time on this level (s), from when it was entered.</summary>
+    public float Time => Tick * Dt;
+    /// <summary>The reef director: world events on their own timers (§4.7), whether she is near or not.</summary>
+    public ReefDirector Director { get; }
     public PlaneBody Player { get; } = new();
     public List<PlaneInk> Clouds { get; } = new();
     public List<PlaneEvent> Events { get; } = new();
@@ -205,6 +211,8 @@ public sealed partial class PlaneWorld
 
         Move(ref p.Position, ref p.Velocity, Radius, barrier: ArenaBarrier.Inside);
 
+        StepReef();
+
         foreach (var c in Clouds) c.Life -= Dt;
         Clouds.RemoveAll(c => c.Life <= 0f);
 
@@ -212,6 +220,57 @@ public sealed partial class PlaneWorld
         StepCombat(input);
         StepFish();
         StepEconomy();
+    }
+
+    readonly List<ReefEvent> _started = new(), _ended = new();
+
+    /// <summary>
+    /// The reef director's turn: events whose time has come start (and finished ones end), and while a surge runs its
+    /// current carries everything not fixed to the reef — Clementine, mobs and fish, every shot, shells, hearts and
+    /// loose pearls, ink clouds — sliding along rock as they swim. Shop stands and Queen Clam hold fast.
+    /// </summary>
+    void StepReef()
+    {
+        _started.Clear();
+        _ended.Clear();
+        Director.Step(Time, _started, _ended);
+        foreach (var e in _started) Events.Add(new PlaneEvent(PlaneEventType.SurgeStarted, Vector2.Zero, Vector2.Zero, e.Speed));
+        foreach (var e in _ended) Events.Add(new PlaneEvent(PlaneEventType.SurgeEnded, Vector2.Zero, Vector2.Zero, e.Speed));
+        if (Director.Active.Count == 0) return;
+
+        var p = Player;
+        Vector2 flow = Director.FlowAt(p.Position, Time);
+        if (flow != Vector2.Zero) Move(ref p.Position, ref flow, Radius, report: false, barrier: ArenaBarrier.Inside);
+        foreach (var mob in Mobs)
+        {
+            if (!mob.Alive) continue;
+            flow = Director.FlowAt(mob.Position, Time);
+            if (flow != Vector2.Zero) Move(ref mob.Position, ref flow, PufferlingTuning.CalmRadius, report: false, barrier: ArenaBarrier.Outside);
+        }
+        foreach (var fish in Fish)
+        {
+            flow = Director.FlowAt(fish.Position, Time);
+            if (flow != Vector2.Zero) Move(ref fish.Position, ref flow, PufferlingTuning.CalmRadius, report: false, barrier: ArenaBarrier.Outside);
+        }
+        // Light things drift where there is water to drift into.
+        foreach (var shot in Shots)
+        {
+            Vector2 d = Director.FlowAt(shot.Position, Time) * Dt;
+            if (d == Vector2.Zero || !Map.IsOpen(shot.Position + d)) continue;
+            shot.Position += d;
+            shot.Line += d;
+        }
+        foreach (var shell in Shells) Carry(ref shell.Position);
+        foreach (var heart in Hearts) Carry(ref heart.Position);
+        foreach (var pearl in Pearls)
+            if (!pearl.Taken) Carry(ref pearl.Position);
+        foreach (var cloud in Clouds) Carry(ref cloud.Position);
+    }
+
+    void Carry(ref Vector2 at)
+    {
+        Vector2 d = Director.FlowAt(at, Time) * Dt;
+        if (d != Vector2.Zero && Map.IsOpen(at + d)) at += d;
     }
 
     /// <summary>True when a circle of the given radius at p sits wholly in open water.</summary>
