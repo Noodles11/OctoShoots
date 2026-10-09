@@ -11,6 +11,8 @@ public sealed class ViewOptions
     /// <summary>Menus and banners cross-fade instead of moving, popping and splashing.</summary>
     [Tune("View")] public bool ReducedMotion = false;
     [Tune("View", 0f, 1f)] public float ShakeAmount = 0.5f;
+    /// <summary>Camera zoom: 1 is the designed framing; above 1 closer, below 1 farther (CameraRig.MinZoom..MaxZoom).</summary>
+    [Tune("View", 0.75f, 1.5f)] public float CameraZoom = 1f;
     [Tune("View", 10f, 80f)] public float MinimapRange = 32f;
     /// <summary>Frame-rate cap (0 = uncapped). Keeps the GPU cool; vsync caps it further on slower screens.</summary>
     [Tune("View", 0f, 240f)] public int MaxFps = 60;
