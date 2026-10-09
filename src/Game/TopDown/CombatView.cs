@@ -16,6 +16,8 @@ public partial class CombatView : Node3D
     readonly List<MeshInstance3D> _shots = new();
     readonly List<Node3D> _pearls = new();
     readonly List<MeshInstance3D> _shells = new();
+    /// <summary>Hearts dropped by freed mobs: a small red heart and its glow each, pooled.</summary>
+    readonly List<Node3D> _hearts = new();
     readonly List<Node3D> _stands = new();
     /// <summary>The stands' price tags: shown only while Clementine is inside the shop.</summary>
     readonly List<Node3D> _prices = new();
@@ -190,6 +192,8 @@ public partial class CombatView : Node3D
     {
         foreach (var sh in _shells) sh.QueueFree();
         foreach (var st in _stands) st.QueueFree();
+        foreach (var h in _hearts) h.QueueFree();
+        _hearts.Clear();
         _shells.Clear();
         _stands.Clear();
         _prices.Clear();
@@ -272,16 +276,42 @@ public partial class CombatView : Node3D
         }
     }
 
-    const float PopSeconds = 0.22f;
+    /// <summary>
+    /// A bubble's pop, slowed from the real thing (a few milliseconds) so it reads at play speed: the film tears open at
+    /// the struck point and the hole's rim sweeps across it in TearSeconds; as the rim passes, the film breaks off it in
+    /// droplets that fling on outward, the chain running from the struck side to the far side, then fade in DropSeconds.
+    /// </summary>
+    const float TearSeconds = 0.09f, DropSeconds = 0.26f;
+    const int Droplets = 22;
 
     sealed class PopFx
     {
         public Node3D Node = null!;
         public MeshInstance3D Shell = null!;
         public MeshInstance3D[] Drops = null!;
-        public Vector3[] DropDirs = null!;
+        /// <summary>Each droplet's place on the film (unit), when the rim reaches it, and the way it flies off.</summary>
+        public Vector3[] DropAt = null!, DropVel = null!;
+        public float[] DropBorn = null!;
+        public Vector3 Impact;
         public float Radius, Age;
     }
+
+    /// <summary>The film's droplets: small, bright, fading on their own.</summary>
+    static ShaderMaterial? _dropletMaterial;
+    static ShaderMaterial DropletMaterial() => _dropletMaterial ??= new ShaderMaterial
+    {
+        Shader = new Shader
+        {
+            Code = @"shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, shadows_disabled;
+instance uniform float fade = 1.0;
+void fragment() {
+	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.5);
+	ALBEDO = mix(vec3(0.92, 0.98, 1.0), vec3(1.0), rim);
+	ALPHA = clamp((0.55 + 0.45 * rim) * fade, 0.0, 1.0);
+}",
+        },
+    };
 
     readonly List<PopFx> _pops = new();
     readonly SphereMesh _unitSphere = new() { Radius = 1f, Height = 2f, RadialSegments = 20, Rings = 10 };
@@ -359,23 +389,43 @@ public partial class CombatView : Node3D
         }
     }
 
-    /// <summary>A bubble popped here (on a mob, on rock, or where it stopped).</summary>
-    public void Pop(System.Numerics.Vector2 at, float radius)
+    /// <summary>
+    /// A bubble popped here (on a mob, on rock, on another bubble, or where it hovered). toward: from its centre to where
+    /// the film gave way, on the plane; the tear starts there, tipped a little up toward the camera.
+    /// </summary>
+    public void Pop(System.Numerics.Vector2 at, float radius, System.Numerics.Vector2 toward)
     {
         var node = new Node3D { Position = new Vector3(at.X, LevelMap.SwimBand, at.Y) };
         AddChild(node);
+        var impact = new Vector3(toward.X, 0.35f, toward.Y);
+        impact = impact.LengthSquared() > 1e-6f ? impact.Normalized() : Vector3.Up;
         var shell = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = _bubble, Scale = Vector3.One * radius, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+        shell.SetInstanceShaderParameter("hole", new Vector4(impact.X, impact.Y, impact.Z, 0f));
+        shell.SetInstanceShaderParameter("wobble", 0.6f);
+        shell.SetInstanceShaderParameter("seed", (float)GD.RandRange(0.0, 10.0));
         node.AddChild(shell);
-        var drops = new MeshInstance3D[6];
-        var dirs = new Vector3[6];
-        for (int i = 0; i < drops.Length; i++)
+        var drops = new MeshInstance3D[Droplets];
+        var place = new Vector3[Droplets];
+        var vel = new Vector3[Droplets];
+        var born = new float[Droplets];
+        for (int i = 0; i < Droplets; i++)
         {
-            float a = i * Mathf.Tau / drops.Length + 0.4f;
-            dirs[i] = new Vector3(Mathf.Cos(a), 0.35f * Mathf.Sin(a * 2f), Mathf.Sin(a));
-            drops[i] = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = _bubble, Scale = Vector3.One * radius * 0.22f, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            // Spread over the film (a golden-angle spiral, jittered), each released when the hole's rim reaches it.
+            float y = 1f - 2f * (i + 0.5f) / Droplets;
+            float a = i * 2.39996f + (float)GD.RandRange(-0.3, 0.3);
+            float r = Mathf.Sqrt(1f - y * y);
+            var p = new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+            float c = p.Dot(impact);
+            born[i] = TearSeconds * (1f - c) * 0.5f;
+            // Flung along the rim's sweep (away from the tear) and outward.
+            var sweep = p * c - impact;
+            sweep = sweep.LengthSquared() > 1e-6f ? sweep.Normalized() : p;
+            vel[i] = (sweep * 1.1f + p * 0.7f) * radius * (6f + 3f * (float)GD.Randf());
+            place[i] = p;
+            drops[i] = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = DropletMaterial(), Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
             node.AddChild(drops[i]);
         }
-        _pops.Add(new PopFx { Node = node, Shell = shell, Drops = drops, DropDirs = dirs, Radius = radius });
+        _pops.Add(new PopFx { Node = node, Shell = shell, Drops = drops, DropAt = place, DropVel = vel, DropBorn = born, Impact = impact, Radius = radius });
     }
 
     public void Sync(PlaneWorld world, float dt)
@@ -414,11 +464,19 @@ public partial class CombatView : Node3D
             }
             else if (shot.FromPlayer)
             {
-                // A bubble, wobbling a little as it flies (an Ink Sac one dark with ink).
+                // A bubble: a film that wobbles, livelier as it moves, weaving a little off its line the way a real
+                // one does (drawn only; it hits where the sim says). An Ink Sac one is dark with ink.
                 float r = shot.Radius * 1.7f;
-                float wob = 0.06f * Mathf.Sin(shot.Age * 18f + i);
-                _shots[i].Scale = new Vector3(r * (1f + wob), r * (1f - wob), r * (1f + wob));
+                float seed = (System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(shot) & 1023) * 0.0137f;
+                float speed = shot.Velocity.Length();
+                float lively = Mathf.Clamp(speed / 8f, 0f, 1f);
+                var side = speed > 1e-3f ? new Vector3(-shot.Velocity.Y, 0f, shot.Velocity.X) / speed : Vector3.Zero;
+                _shots[i].Position += side * Mathf.Sin(shot.Age * 11f + seed * 7f) * 0.05f * lively + Vector3.Up * 0.04f * Mathf.Sin(shot.Age * 3.1f + seed * 5f);
+                _shots[i].Scale = Vector3.One * r;
                 _shots[i].MaterialOverride = _bubble;
+                _shots[i].SetInstanceShaderParameter("seed", seed);
+                _shots[i].SetInstanceShaderParameter("wobble", 0.45f + 0.55f * lively);
+                _shots[i].SetInstanceShaderParameter("hole", new Vector4(0f, 1f, 0f, 0f));
                 _shots[i].SetInstanceShaderParameter("fade", 1f);
                 _shots[i].SetInstanceShaderParameter("ink", shot.Explosive ? 1f : 0f);
                 _shots[i].SetInstanceShaderParameter("rainbow", shot.Bubbles >= PlaneCombatTuning.BubbleCap ? 1f : 0f);
@@ -436,25 +494,32 @@ public partial class CombatView : Node3D
             }
         }
 
-        // Popping bubbles: the shell swells and fades, a few droplets fly off.
+        // Popping bubbles: the tear opens from the struck point and sweeps the film away; droplets break off the rim
+        // as it passes and fly on, shrinking and fading.
         for (int i = _pops.Count - 1; i >= 0; i--)
         {
             var pop = _pops[i];
             pop.Age += dt;
-            float k = pop.Age / PopSeconds;
-            if (k >= 1f)
+            if (pop.Age >= TearSeconds + DropSeconds)
             {
                 pop.Node.QueueFree();
                 _pops.RemoveAt(i);
                 continue;
             }
-            float fade = 1f - k;
-            pop.Shell.Scale = Vector3.One * pop.Radius * (1f + 0.9f * Mathf.Sqrt(k));
-            pop.Shell.SetInstanceShaderParameter("fade", fade * fade);
+            float open = Mathf.Clamp(pop.Age / TearSeconds, 0f, 1f);
+            // The rim speeds up as it goes (the film's tension pulls it).
+            open = open * open * (1.6f - 0.6f * open);
+            pop.Shell.Visible = open < 1f;
+            pop.Shell.SetInstanceShaderParameter("hole", new Vector4(pop.Impact.X, pop.Impact.Y, pop.Impact.Z, Mathf.Max(open, 0.001f)));
             for (int d = 0; d < pop.Drops.Length; d++)
             {
-                pop.Drops[d].Position = pop.DropDirs[d] * pop.Radius * (1f + 3.5f * k);
-                pop.Drops[d].SetInstanceShaderParameter("fade", fade);
+                float t = pop.Age - pop.DropBorn[d];
+                pop.Drops[d].Visible = t >= 0f && t < DropSeconds;
+                if (!pop.Drops[d].Visible) continue;
+                float k = t / DropSeconds;
+                pop.Drops[d].Position = pop.DropAt[d] * pop.Radius + pop.DropVel[d] * t * (1f - 0.45f * k);
+                pop.Drops[d].Scale = Vector3.One * pop.Radius * 0.11f * (1f - 0.6f * k);
+                pop.Drops[d].SetInstanceShaderParameter("fade", 1f - k * k);
             }
         }
 
@@ -529,6 +594,25 @@ public partial class CombatView : Node3D
             _shells[i].Position = new Vector3(sh.Position.X, LevelMap.SwimBand - 0.25f + 0.08f * Mathf.Sin(_time * 2.2f + i * 0.7f), sh.Position.Y);
             _shells[i].Rotation = new Vector3(0.35f, _time * 0.8f + i, 0f);
             _shells[i].Scale = Vector3.One * 1.7f;
+        }
+        // Hearts: like the shop's heart but smaller, beating gently where they fell.
+        while (_hearts.Count < world.Hearts.Count)
+        {
+            var node = new Node3D();
+            node.AddChild(new MeshInstance3D { Mesh = HeartMesh(), MaterialOverride = _heart ??= HeartMaterial(), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+            node.AddChild(new OmniLight3D { LightColor = new Color(1f, 0.4f, 0.45f), LightEnergy = 0.8f, OmniRange = 2.5f, ShadowEnabled = false });
+            AddChild(node);
+            _hearts.Add(node);
+        }
+        for (int i = 0; i < _hearts.Count; i++)
+        {
+            bool used = i < world.Hearts.Count;
+            _hearts[i].Visible = used;
+            if (!used) continue;
+            var heart = world.Hearts[i];
+            float beat = Mathf.Pow(Mathf.Max(Mathf.Sin(_time * 5f + i), 0f), 6f);
+            _hearts[i].Position = new Vector3(heart.Position.X, LevelMap.SwimBand + 0.12f * Mathf.Sin(_time * 1.8f + i), heart.Position.Y);
+            _hearts[i].Scale = Vector3.One * 0.7f * (1f + 0.12f * beat);
         }
         for (int i = 0; i < _stands.Count && i < world.Stands.Count; i++)
         {

@@ -13,8 +13,13 @@ public static class PlaneEconomyTuning
     public const float ShellReach = 0.6f, ShellMagnet = 2.5f, ShellMagnetSpeed = 9f;
     /// <summary>Remora Sucker: shells drift to her from this far instead.</summary>
     public const float RemoraMagnet = 7.5f;
-    /// <summary>Every mob drops this many shells (inclusive range).</summary>
-    public const int MobDropMin = 1, MobDropMax = 2;
+    /// <summary>
+    /// What a freed mob leaves, one roll each: a heart (HeartChance), else shells (ShellChance: one, or two at
+    /// TwoShells of those), else nothing. About one heart and six shells a level from mobs.
+    /// </summary>
+    public const float HeartChance = 0.06f, ShellChance = 0.3f, TwoShells = 0.25f;
+    /// <summary>A heart pickup heals one heart (20 HP, 2D §23). She takes it only when hurt; otherwise it waits.</summary>
+    public const float HeartHeal = 20f, HeartReach = 0.6f;
     /// <summary>Shell caches at places: the item cache and secret rooms (inclusive ranges).</summary>
     public const int CacheMin = 6, CacheMax = 9, SecretMin = 8, SecretMax = 12;
     /// <summary>The shop: at most one pearl (offered this often), and always a heart (a health top-up).</summary>
@@ -33,6 +38,14 @@ public sealed class PlaneShell
     public Vector2 Position;
     public Vector2 Velocity;
     public int Value = 1;
+    public bool Taken;
+}
+
+/// <summary>A heart dropped by a freed mob: it floats where it fell until she, hurt, swims over it.</summary>
+public sealed class PlaneHeart
+{
+    public Vector2 Position;
+    public Vector2 Velocity;
     public bool Taken;
 }
 
@@ -62,6 +75,7 @@ public sealed class PlaneStats
 public sealed partial class PlaneWorld
 {
     public List<PlaneShell> Shells { get; } = new();
+    public List<PlaneHeart> Hearts { get; } = new();
     public List<ShopStand> Stands { get; } = new();
     public PlaneStats Stats { get; } = new();
 
@@ -110,14 +124,24 @@ public sealed partial class PlaneWorld
     }
 
     /// <summary>A defeated mob leaves shells, flung a little way.</summary>
-    void DropShells(Vector2 at)
+    void Drop(Vector2 at)
     {
-        int count = PlaneEconomyTuning.MobDropMin + _drops.Int(PlaneEconomyTuning.MobDropMax - PlaneEconomyTuning.MobDropMin + 1);
-        for (int i = 0; i < count; i++)
+        float roll = _drops.NextFloat();
+        if (roll < PlaneEconomyTuning.HeartChance)
         {
-            float a = _drops.Range(0f, MathF.Tau);
-            Shells.Add(new PlaneShell { Position = at, Velocity = new Vector2(MathF.Cos(a), MathF.Sin(a)) * _drops.Range(2f, 4f) });
+            Hearts.Add(new PlaneHeart { Position = at, Velocity = Fling(1.5f, 2.5f) });
+            return;
         }
+        if (roll >= PlaneEconomyTuning.HeartChance + PlaneEconomyTuning.ShellChance) return;
+        int count = _drops.NextFloat() < PlaneEconomyTuning.TwoShells ? 2 : 1;
+        for (int i = 0; i < count; i++) Shells.Add(new PlaneShell { Position = at, Velocity = Fling(2f, 4f) });
+    }
+
+    /// <summary>A drop flung a little way in a random direction.</summary>
+    Vector2 Fling(float min, float max)
+    {
+        float a = _drops.Range(0f, MathF.Tau);
+        return new Vector2(MathF.Cos(a), MathF.Sin(a)) * _drops.Range(min, max);
     }
 
     void StepEconomy()
@@ -141,6 +165,25 @@ public sealed partial class PlaneWorld
             Events.Add(new PlaneEvent(PlaneEventType.ShellCollected, shell.Position, Vector2.Zero));
         }
         Shells.RemoveAll(s => s.Taken);
+
+        // Hearts: they drift to a stop; hurt, she takes one by swimming over it (Remora Sucker draws it to her).
+        bool hurt = p.Hp < Run.MaxHp;
+        foreach (var heart in Hearts)
+        {
+            Vector2 to = p.Position - heart.Position;
+            float d = to.Length();
+            if (hurt && d < Radius + magnet && d > 1e-4f) heart.Velocity = to / d * PlaneEconomyTuning.ShellMagnetSpeed;
+            else heart.Velocity *= MathF.Exp(-4f * Dt);
+            Vector2 next = heart.Position + heart.Velocity * Dt;
+            if (Map.IsOpen(next)) heart.Position = next;
+            else heart.Velocity = Vector2.Zero;
+            if (!hurt || d > Radius + PlaneEconomyTuning.HeartReach) continue;
+            heart.Taken = true;
+            p.Hp = MathF.Min(p.Hp + PlaneEconomyTuning.HeartHeal, Run.MaxHp);
+            hurt = p.Hp < Run.MaxHp;
+            Events.Add(new PlaneEvent(PlaneEventType.HeartCollected, heart.Position, Vector2.Zero));
+        }
+        Hearts.RemoveAll(h => h.Taken);
 
         int near = -1;
         for (int i = 0; i < Stands.Count; i++)

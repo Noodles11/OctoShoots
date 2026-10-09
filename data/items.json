@@ -224,6 +224,11 @@
       "quality": 3, "pools": ["treasure", "boss"], "tags": ["tentacle"],
       "stats": [ { "stat": "bubblesPerThrow", "value": 1 } ],
       "shot": { "damageMult": 0.85 } },
+    { "id": "bubble_coral", "name": "Bubble Coral", "tagline": "Little ones grow up",
+      "pearl": { "colors": ["#f1faee", "#a8dadc", "#cdb4db"], "pattern": "spots" },
+      "quality": 2, "pools": ["treasure", "shop"], "tags": ["coral"],
+      "stats": [ { "stat": "bubbleHover", "op": "mult", "value": 1.5 } ],
+      "flags": ["mergeBubbles"] },
 
     // ── Active (F) — recharge over time ─────────────────────────────
     { "id": "conch_horn", "name": "Conch Horn", "tagline": "The sea answers",

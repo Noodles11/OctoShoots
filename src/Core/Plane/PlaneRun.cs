@@ -18,7 +18,7 @@ public sealed class PlaneRun
     {
         "triple_tentacle", "hammerhead", "anglerfish_lure", "swordfish_bill", "mirror_scale", "boomerang_shrimp", "double_helix",
         "coral_crown", "moon_jelly_heart", "shark_tooth", "pearl_diver", "starfish_arm", "ink_sac", "remora_sucker",
-        "captains_hook", "lantern_pearl",
+        "captains_hook", "lantern_pearl", "bubble_coral",
         "bubble_shield", "whale_song",
     };
 

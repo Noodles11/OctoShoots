@@ -35,8 +35,9 @@ public static class LevelValidator
             for (int j = i + 1; j < others.Count; j++)
                 if (Vector2.Distance(others[i].Position, others[j].Position) < 21f) return $"{others[i].Kind} and {others[j].Kind} closer than 21 m";
         }
+        // One place sits early, unless the shell cache (which keeps to the middle of the way) is the level's only place.
         var early = others.Where(p => p.Early).ToList();
-        if (others.Count > 0 && (early.Count != 1 || Vector2.Distance(early[0].Position, start.Position) > 47f)) return $"{early.Count} early POIs (want exactly one, 39–47 m from the start)";
+        if (others.Any(p => p.Kind != PoiKind.ShellCache) && (early.Count != 1 || Vector2.Distance(early[0].Position, start.Position) > 47f)) return $"{early.Count} early POIs (want exactly one, 39–47 m from the start)";
 
         // Path network.
         var mains = map.Corridors.Where(c => c.Kind == CorridorKind.Main).ToList();

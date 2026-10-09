@@ -39,7 +39,7 @@ Arguments after `--`:
 - Automation: `--autopilot` (swims the shortest route to the exit), `--dive` (dives whenever it can), `--fire`,
   `--use-active` (uses the active pearl whenever it is ready), `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
-- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
+- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-slowmo=0.1` (game time slowed, e.g. to watch bubbles pop), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
   (no boss title card).
 - Any of these flags skip the title and start a run that is neither recorded nor saved.
 - The title's own review flags:

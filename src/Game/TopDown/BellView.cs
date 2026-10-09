@@ -241,7 +241,22 @@ public partial class BellView : Node3D
         SyncInk(world);
         SyncShield(p, h);
         SyncCharge(p);
+        SyncGlowPool(world);
     }
+
+    /// <summary>
+    /// Her glow on the reef beneath her (reef_surface.gdshaderinc, rs_her_glow): where the bell is, how wide the warm pool
+    /// is (3 m, wider with Lantern Pearl), and how strong; the pool fades as she turns head-down into a dive.
+    /// </summary>
+    void SyncGlowPool(PlaneWorld world)
+    {
+        float glow = world.Run.Loadout.Stats[OctoShoots.Core.Items.Stat.Glow];
+        var at = GlobalPosition;
+        RenderingServer.GlobalShaderParameterSet("her_glow", new Vector4(at.X, at.Y, at.Z, 3f * Mathf.Sqrt(Mathf.Max(glow, 0.1f))));
+        RenderingServer.GlobalShaderParameterSet("her_glow_strength", (1f - DiveTurn) * (0.9f + 0.1f * _pulse));
+    }
+
+    public override void _ExitTree() => RenderingServer.GlobalShaderParameterSet("her_glow_strength", 0f);
 
     /// <summary>
     /// Health into the gonad rings (draining at most 0.8 of her max a second, healing back faster) and the active pearl's

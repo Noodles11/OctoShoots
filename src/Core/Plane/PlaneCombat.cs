@@ -18,20 +18,33 @@ public static class PlaneCombatTuning
     public const float PlayerHurtGrace = 0.6f;
 
     /// <summary>
-    /// Her shots are bubbles: thrown at this speed, they slow steadily (constant deceleration) to a stop about BubbleRange
-    /// away and pop there, unless they hit a mob or rock first. ShotLife is only a safety net.
+    /// Her shots are bubbles, and a bubble never stops dead: thrown at ShotSpeed, it first slows steadily (the
+    /// deceleration that would stop it BubbleRange away), then, once the water's drag (BubbleDrag × its speed, per
+    /// second) is the gentler of the two, it eases off exponentially — the two meet smoothly, at about 6.5 m/s. Below
+    /// BubbleStop it hovers (still drifting, still slowing) for its own hover time, then pops: in all about 11.5 m from
+    /// her. ShotLife is only a safety net.
     /// </summary>
     public const float ShotSpeed = 17f;
-    public const float BubbleRange = 11f;
-    /// <summary>Below this speed a bubble has stopped: it rests in place for BubbleRest, then pops.</summary>
-    public const float BubbleStop = 0.9f;
-    public const float BubbleRest = 0.3f;
+    public const float BubbleRange = 10f, BubbleDrag = 2.2f;
     /// <summary>
-    /// Two of her bubbles that touch merge into one (bubbles of the same volley never do): it keeps the faster one's speed,
-    /// the longer life, and the summed damage; its radius grows by BubbleGrowth of the base for every bubble merged in,
-    /// so three bubbles make one twice the size. Size and damage stop growing at BubbleCap bubbles (it still merges,
-    /// taking speed, heading and life); a full bubble shines like a rainbow.
+    /// Below this speed a bubble hovers: still drifting and slowing, each bubble for its own time between BubbleHoverMin
+    /// and BubbleHoverMax seconds (times her bubble hover stat), then it pops.
     /// </summary>
+    public const float BubbleStop = 0.9f;
+    public const float BubbleHoverMin = 0.8f, BubbleHoverMax = 1.2f;
+    /// <summary>
+    /// A bubble that bumps into rock or another bubble pops this often; otherwise it bounces off (Mirror Scale's bounces
+    /// are sure; with Bubble Coral, bubbles that meet merge instead). A bubble that hits a mob always pops.
+    /// </summary>
+    public const float BubblePopChance = 0.4f;
+    /// <summary>
+    /// Two of her bubbles that touch (never two of the same volley) bounce off each other: pushed apart, each turned off
+    /// the other with BubbleBounce of the meeting speed kept. With Bubble Coral they merge into one instead: it keeps the
+    /// faster one's speed, the longer life, and the summed damage; its radius grows by BubbleGrowth of the base for every
+    /// bubble merged in, so three bubbles make one twice the size. Size and damage stop growing at BubbleCap bubbles (it
+    /// still merges, taking speed, heading and life); a full bubble shines like a rainbow.
+    /// </summary>
+    public const float BubbleBounce = 0.8f;
     public const float BubbleGrowth = 0.5f;
     public const int BubbleCap = 15;
     public const float ShotLife = 3f;
@@ -127,10 +140,10 @@ public sealed class PlaneShot
     public bool Grow, Explosive;
     /// <summary>Pearl Diver: how charged it was when thrown, 0–1 (the view draws a charged one as a pearl).</summary>
     public float Charged;
-    /// <summary>Bubbles: thrown at Speed0, easing to a stop at Range (0: a plain shot at constant speed).</summary>
+    /// <summary>Bubbles: thrown at Speed0, slowing as if to stop at Range, then easing off with drag (0: a plain shot at constant speed).</summary>
     public float Speed0, Range;
-    /// <summary>How long a bubble has rested since it stopped.</summary>
-    public float Rest;
+    /// <summary>How long a bubble has hovered (drifting below BubbleStop), and how long it will before it pops.</summary>
+    public float Rest, Hover = 1f;
     /// <summary>Merging: the volley it came from, its unmerged radius, and how many bubbles it is made of.</summary>
     public int Volley;
     public float BaseRadius = PlaneCombatTuning.ShotRadius;
@@ -391,7 +404,7 @@ public sealed partial class PlaneWorld
                 if (shot.Needle)
                     foreach (var bubble in Shots)
                         if (bubble.FromPlayer && bubble.Life > 0f && Geo.SegmentDistance(bubble.Position, was, shot.Position) < bubble.Radius + shot.Radius)
-                            Pop(bubble);
+                            Pop(bubble, was - bubble.Position);
                 // Rock stops shots, and so does the sealed arena's wall.
                 if (!Map.IsOpen(shot.Position) || _rocks.Any(r => Vector2.Distance(shot.Position, r.Center) < r.Radius) || CrossesRim(was, shot.Position)) shot.Life = 0f;
             }
@@ -415,7 +428,7 @@ public sealed partial class PlaneWorld
                         pearlHit.Life = 0f;
                         Events.Add(new PlaneEvent(PlaneEventType.ShotPopped, pearlHit.Position, pearlHit.Velocity, pearlHit.Radius));
                     }
-                    Pop(shot);
+                    Pop(shot, pearlHit.Position - shot.Position);
                     continue;
                 }
                 foreach (var mob in Mobs)
@@ -423,7 +436,7 @@ public sealed partial class PlaneWorld
                     if (!mob.Alive || Vector2.Distance(mob.Position, shot.Position) > mob.Radius + shot.Radius) continue;
                     if (shot.Hit is not null && !shot.Hit.Add(mob)) continue;
                     DamageMob(mob, shot.Damage * GrowFactor(shot), shot.Velocity);
-                    if (!shot.Pierce && !shot.Boomerang) Pop(shot);
+                    if (!shot.Pierce && !shot.Boomerang) Pop(shot, mob.Position - shot.Position);
                     if (shot.Life <= 0f) break;
                 }
             }
@@ -434,7 +447,7 @@ public sealed partial class PlaneWorld
                 if (HurtPlayer(shot.Damage, shot.Velocity, source) && shot.Royal) p.SlowTimer = PlaneBossTuning.SlowSeconds;
             }
         }
-        MergeBubbles();
+        TouchBubbles();
         Shots.RemoveAll(s => s.Life <= 0f);
 
         // Out of HP: the run is over (the world stops; the game shows the death splash and starts a new run).
@@ -471,7 +484,7 @@ public sealed partial class PlaneWorld
         Events.Add(new PlaneEvent(mob.Alive ? PlaneEventType.MobHit : PlaneEventType.MobDefeated, mob.Position, dir, damage));
         if (mob.Alive) return;
         Stats.MobsDefeated++;
-        DropShells(mob.Position);
+        Drop(mob.Position);
         Free(mob);
     }
 
@@ -587,6 +600,7 @@ public sealed partial class PlaneWorld
             float spread = spec.Pattern == ShotPattern.Cone ? spec.SpreadDeg * 1.6f : spec.SpreadDeg;
             Vector2 dir = spec.Wave || count == 1 ? aim : Rotate(aim, (i - (count - 1) * 0.5f) * spread * MathUtil.Deg2Rad);
             Vector2 at = p.Position + dir * (Radius + 0.2f);
+            float hover = _bubbleRng.Range(PlaneCombatTuning.BubbleHoverMin, PlaneCombatTuning.BubbleHoverMax) * Run.Loadout.Stats[Stat.BubbleHover];
             var shot = new PlaneShot
             {
                 Position = at,
@@ -594,7 +608,7 @@ public sealed partial class PlaneWorld
                 Velocity = dir * speed,
                 Speed0 = speed,
                 Range = PlaneCombatTuning.BubbleRange,
-                Life = PlaneCombatTuning.ShotLife,
+                Life = PlaneCombatTuning.ShotLife + hover,
                 FromPlayer = true,
                 Damage = damage,
                 Radius = radius,
@@ -602,6 +616,7 @@ public sealed partial class PlaneWorld
                 Grow = spec.Grow,
                 Explosive = spec.Explosive,
                 Charged = charge,
+                Hover = hover,
                 Volley = _volleys,
                 Homing = spec.Homing,
                 Pierce = spec.Pierce,
@@ -619,11 +634,17 @@ public sealed partial class PlaneWorld
     int _volleys;
 
     /// <summary>
-    /// Her bubbles that touch merge (not two of one volley, which leave her side by side): the faster one carries on, with
-    /// the longer life, the summed damage, and a radius grown by BubbleGrowth per bubble merged in.
+    /// Her bubbles that touch (not two of one volley, which leave her side by side) bounce off each other; with Bubble
+    /// Coral they merge: the faster one carries on, with the longer life, the summed damage, and a radius grown by
+    /// BubbleGrowth per bubble merged in.
     /// </summary>
-    void MergeBubbles()
+    void TouchBubbles()
     {
+        if (!Run.Loadout.Flags.Contains("mergeBubbles"))
+        {
+            BounceBubbles();
+            return;
+        }
         for (int i = 0; i < Shots.Count; i++)
         {
             var a = Shots[i];
@@ -643,6 +664,7 @@ public sealed partial class PlaneWorld
                 keep.Line = (keep.Line * wk + gone.Line * wg) / w;
                 keep.Life = MathF.Max(keep.Life, gone.Life);
                 keep.Rest = MathF.Min(keep.Rest, gone.Rest);
+                keep.Hover = MathF.Max(keep.Hover, gone.Hover);
                 // Past the cap only speed, heading and life carry over.
                 int added = Math.Min(gone.Bubbles, PlaneCombatTuning.BubbleCap - keep.Bubbles);
                 if (added < 0) added = 0;
@@ -655,6 +677,49 @@ public sealed partial class PlaneWorld
                 // Absorbed, no pop.
                 gone.Life = -1000f;
                 if (gone == a) break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Bubbles that touch push each other apart (the bigger one moving less) and, when they are closing, turn off each
+    /// other like two balls of their size (weight by area). Their speed stays the bubble's own easing-out speed, so a
+    /// bounce turns them; a bubble at rest is only nudged aside.
+    /// </summary>
+    void BounceBubbles()
+    {
+        for (int i = 0; i < Shots.Count; i++)
+        {
+            var a = Shots[i];
+            if (!a.FromPlayer || a.Life <= 0f) continue;
+            for (int j = i + 1; j < Shots.Count; j++)
+            {
+                var b = Shots[j];
+                if (!b.FromPlayer || b.Life <= 0f || a.Volley == b.Volley) continue;
+                Vector2 off = b.Position - a.Position;
+                float dist = off.Length(), reach = a.Radius + b.Radius;
+                if (dist >= reach) continue;
+                Vector2 n = dist > 1e-4f ? off / dist : new Vector2(MathF.Cos(i * 2.4f + j), MathF.Sin(i * 2.4f + j));
+                float ma = a.Radius * a.Radius, mb = b.Radius * b.Radius;
+                // Apart: each moves by its share of the overlap (Line too, so a weaving bubble keeps its weave).
+                float overlap = reach - dist;
+                Vector2 pa = -n * overlap * mb / (ma + mb), pb = n * overlap * ma / (ma + mb);
+                a.Position += pa;
+                a.Line += pa;
+                b.Position += pb;
+                b.Line += pb;
+                // Closing: a soft elastic knock along the line between them; each may pop on the bump.
+                float closing = Vector2.Dot(a.Velocity - b.Velocity, n);
+                if (closing <= 0f) continue;
+                float impulse = (1f + PlaneCombatTuning.BubbleBounce) * closing / (1f / ma + 1f / mb);
+                a.Velocity -= n * impulse / ma;
+                b.Velocity += n * impulse / mb;
+                if (_bubbleRng.NextFloat() < PlaneCombatTuning.BubblePopChance) Pop(b, -n);
+                if (_bubbleRng.NextFloat() < PlaneCombatTuning.BubblePopChance)
+                {
+                    Pop(a, n);
+                    break;
+                }
             }
         }
     }
@@ -687,17 +752,20 @@ public sealed partial class PlaneWorld
         float speed = shot.Velocity.Length();
         Vector2 dir = speed > 1e-4f ? shot.Velocity / speed : p.Aim;
         float range = shot.Range > 0f ? shot.Range : PlaneCombatTuning.BubbleRange;
-        // A bubble eases out: constant deceleration, so v² falls linearly with the distance flown, reaching 0 at its range.
+        // A bubble eases out and never stops dead: steady deceleration while fast, the water's drag (proportional to its
+        // speed) once that is gentler; slow, it hovers — drifting on, still slowing — for its own time, then pops.
         if (shot.Range > 0f && !shot.Boomerang)
         {
-            speed = shot.Speed0 * MathF.Sqrt(MathF.Max(0f, 1f - shot.Traveled / shot.Range));
+            float decel = shot.Speed0 * shot.Speed0 / (2f * shot.Range);
+            speed = MathF.Max(speed - MathF.Min(decel, PlaneCombatTuning.BubbleDrag * speed) * Dt, 0f);
             if (speed < PlaneCombatTuning.BubbleStop)
             {
-                // Stopped: it hangs still a moment, then pops.
-                shot.Velocity = Vector2.Zero;
                 shot.Rest += Dt;
-                if (shot.Rest >= PlaneCombatTuning.BubbleRest) Pop(shot);
-                return;
+                if (shot.Rest >= shot.Hover)
+                {
+                    Pop(shot);
+                    return;
+                }
             }
         }
 
@@ -744,23 +812,25 @@ public sealed partial class PlaneWorld
         {
             if (rim)
             {
-                Pop(shot);
+                Pop(shot, dir);
                 return;
             }
-            if (shot.BouncesLeft > 0)
+            // A returning boomerang passes back over what it cleared.
+            if (!(shot.Boomerang && shot.Returning))
             {
+                // Mirror Scale's bounces are sure; otherwise the bump may pop it, or it bounces off.
+                bool bounce = shot.BouncesLeft > 0 || _bubbleRng.NextFloat() >= PlaneCombatTuning.BubblePopChance;
+                if (!bounce)
+                {
+                    Pop(shot, dir);
+                    return;
+                }
+                if (shot.BouncesLeft > 0) shot.BouncesLeft--;
                 // Off the rock face: reflect about the slope's normal (uphill = into the wall).
                 Vector2 n = Map.Gradient(next);
                 n = n.LengthSquared() > 1e-6f ? Vector2.Normalize(n) : dir;
                 if (Vector2.Dot(shot.Velocity, n) > 0f) shot.Velocity -= 2f * Vector2.Dot(shot.Velocity, n) * n;
                 else shot.Velocity = -shot.Velocity;
-                shot.BouncesLeft--;
-                return;
-            }
-            // A returning boomerang passes back over what it cleared; anything else pops on the rock.
-            if (!(shot.Boomerang && shot.Returning))
-            {
-                Pop(shot);
                 return;
             }
         }
@@ -775,14 +845,26 @@ public sealed partial class PlaneWorld
         }
     }
 
-    /// <summary>A bubble bursts where it is (on a mob, on rock, or where it came to rest); an Ink Sac one bursts into ink.</summary>
-    void Pop(PlaneShot shot)
+    /// <summary>
+    /// A bubble bursts where it is (on a mob, on rock, or where it hovered); an Ink Sac one bursts into ink. toward: from
+    /// its centre to where it was struck (the film tears open there first); none, it gives way at a random spot.
+    /// </summary>
+    void Pop(PlaneShot shot, Vector2? toward = null)
     {
         if (shot.Life < -100f) return;
         shot.Life = -1000f;
-        Events.Add(new PlaneEvent(PlaneEventType.ShotPopped, shot.Position, shot.Velocity, shot.Radius));
+        Vector2 at = toward is { } t ? SafeNormalize(t) : Vector2.Zero;
+        if (at == Vector2.Zero)
+        {
+            float a = _bubbleRng.Range(0f, MathF.Tau);
+            at = new Vector2(MathF.Cos(a), MathF.Sin(a));
+        }
+        Events.Add(new PlaneEvent(PlaneEventType.ShotPopped, shot.Position, at, shot.Radius));
         if (shot.FromPlayer && shot.Explosive) InkBlast(shot);
     }
+
+    /// <summary>Her bubbles' own rolls (hover times, pops on a bump, where a film gives way), from the level's seed.</summary>
+    Rng _bubbleRng = null!;
 
     /// <summary>Turns a unit direction toward another by at most maxRadians.</summary>
     static Vector2 Turn(Vector2 from, Vector2 to, float maxRadians)

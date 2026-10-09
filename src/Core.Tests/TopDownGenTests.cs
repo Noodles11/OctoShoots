@@ -371,9 +371,13 @@ public class TopDownGenTests
                     Assert.True(Vector2.Distance(others[i].Position, others[j].Position) >= 21f);
             }
             if (others.Count == 0) continue;
-            // The first place she meets sits just past the start's stamp.
-            var early = Assert.Single(others, p => p.Early);
-            Assert.InRange(Vector2.Distance(early.Position, start), 39f, 47f);
+            // The first place she meets sits just past the start's stamp (unless the shell cache is the only place).
+            if (others.Any(p => p.Kind != PoiKind.ShellCache))
+            {
+                var early = Assert.Single(others, p => p.Early);
+                Assert.InRange(Vector2.Distance(early.Position, start), 39f, 47f);
+            }
+            else Assert.DoesNotContain(others, p => p.Early);
 
             // A shell cache sits 40–60% along the start→exit axis, off the main corridors.
             foreach (var cache in map.Pois.Where(p => p.Kind == PoiKind.ShellCache))

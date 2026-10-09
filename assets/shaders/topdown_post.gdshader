@@ -23,6 +23,9 @@ global uniform float reef_saturation;
 global uniform float reef_vignette;
 global uniform float reef_fog;
 global uniform vec4 reef_crack;
+/// Clementine's bell in world space and her glow pool's radius; how strong her glow on the floor is (BellView).
+global uniform vec4 her_glow;
+global uniform float her_glow_strength;
 
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
@@ -120,6 +123,23 @@ void fragment() {
 	float veil = mix(0.18, 0.5, reef_fog);
 	float fog = smoothstep(0.0, 1.8, below) * (veil + (0.85 - veil) * (1.0 - exp(-below * deep_fog * (0.6 + reef_fog))));
 	col = mix(col, water, fog);
+
+	// Her glow lands on the floor (DESIGN-TOPDOWN §5): in daylight bioluminescence reads not as brightness but as a
+	// warm tint on what is near, and as shadow contrast. A broad warm pool (her_glow.w metres, showing on pale sand
+	// too) lets the reef advertise her; a small soft dark blob straight under the bell (about 1.2× its radius) gives her
+	// bright body the dark anchor it needs to pop. Laid on after the water's veil so neither is washed out; only on what
+	// lies below her (never rock over her head), fading as the gap below her grows. She herself is drawn after this
+	// pass, so the shadow never darkens her.
+	if (her_glow_strength > 0.0 && !open_deep) {
+		float gap = her_glow.y - world.y;
+		float d = distance(world.xz, her_glow.xz);
+		float k = her_glow_strength * smoothstep(0.1, 0.5, gap) * (1.0 - smoothstep(5.0, 10.0, gap));
+		float pool = exp(-pow(d / (her_glow.w * 0.55), 2.0)) * k;
+		vec3 warm = vec3(1.0, 0.46, 0.18);
+		col = mix(col, col * warm * 1.15 + warm * 0.06, pool * 0.65);
+		float shadow = (1.0 - smoothstep(0.1, 0.62, d)) * k * (1.0 - smoothstep(2.0, 5.0, gap));
+		col *= 1.0 - 0.6 * shadow;
+	}
 
 	vec3 cam = CAMERA_POSITION_WORLD;
 	vec3 ray = normalize(world - cam);

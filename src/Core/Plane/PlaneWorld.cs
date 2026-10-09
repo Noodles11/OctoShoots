@@ -58,7 +58,7 @@ public sealed class PlaneInk
     public float MaxLife;
 }
 
-public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
+public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, HeartCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
     ChargeFull, InkBlast, ShieldBlocked, ActiveUsed, ActiveNotReady, ActiveDenied,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
@@ -66,7 +66,8 @@ public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, Mob
 public enum DamageSource { None, PufferNeedle, PufferSpines, BossPearl, RoyalPearl, BossSnap, BossContact }
 
 /// <summary>
-/// Size: a popped bubble's radius; an ink blast's radius (InkBlast); the bubbles in a volley (Shot); the damage dealt
+/// Direction: for ShotPopped, the unit direction from the bubble's centre to where its film gave way. Size: a popped
+/// bubble's radius; an ink blast's radius (InkBlast); the bubbles in a volley (Shot); the damage dealt
 /// or taken (MobHit, MobDefeated, BossHit, PlayerHit); HP healed (ActiveUsed by Whale Song); 0 otherwise. Source: what
 /// hurt her (PlayerHit, PlayerDefeated).
 /// </summary>
@@ -93,6 +94,7 @@ public sealed partial class PlaneWorld
         Player.Position = Player.PrevPosition = map.Start.Position;
         Player.Hp = Run.Hp;
         _rocks = new List<WeakRock>(map.WeakRocks);
+        _bubbleRng = new Rng(map.Seed ^ 0xB0BB1EUL ^ ((ulong)map.Level << 24) ^ ((ulong)map.Depth << 32) ^ ((ulong)map.Attempt << 48));
         PlaceMobs();
         PlaceFish();
         PlacePearls();
@@ -272,7 +274,32 @@ public sealed partial class PlaneWorld
             float vInto = Vector2.Dot(velocity, n);
             if (vInto > 0f) velocity -= n * vInto;
             next = position + step;
-            if (Fits(next, radius, barrier)) position = next;
+            if (Fits(next, radius, barrier))
+            {
+                position = next;
+                continue;
+            }
+            // In a bend the averaged wall normal can come out square to the push, leaving nothing to slide along: try
+            // the step's two axis parts and its slide along the wall, and take what goes furthest her way.
+            Vector2 wish = delta / steps;
+            Vector2 tangent = new(-n.Y, n.X);
+            Vector2 best = Vector2.Zero;
+            float bestGain = 1e-5f;
+            foreach (var t in new[] { new Vector2(wish.X, 0f), new Vector2(0f, wish.Y), tangent * Vector2.Dot(wish, tangent) })
+            {
+                float gain = Vector2.Dot(t, wish);
+                if (gain <= bestGain || !Fits(position + t, radius, barrier)) continue;
+                best = t;
+                bestGain = gain;
+            }
+            if (best != Vector2.Zero)
+            {
+                position += best;
+                step = best;
+                // Keep only the velocity along the way she could go.
+                Vector2 dir = Vector2.Normalize(best);
+                velocity = dir * MathF.Max(Vector2.Dot(velocity, dir), 0f);
+            }
             else
             {
                 velocity = Vector2.Zero;

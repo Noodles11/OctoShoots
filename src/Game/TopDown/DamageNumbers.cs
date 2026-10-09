@@ -41,10 +41,10 @@ public partial class DamageNumbers : Node3D
         {
             Text = (amount < 0f ? "-" : "+") + number,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-            PixelSize = 0.01f,
+            PixelSize = 0.022f,
             FontSize = hers ? 56 : 46,
-            OutlineSize = 12,
-            OutlineModulate = new Color(0.08f, 0.04f, 0.05f, 0.85f),
+            OutlineSize = 16,
+            OutlineModulate = new Color(0.08f, 0.04f, 0.05f, 0.95f),
             Modulate = amount < 0f ? Damage : Heal,
             NoDepthTest = true,
             RenderPriority = 4,
@@ -75,7 +75,7 @@ public partial class DamageNumbers : Node3D
             label.Scale = Vector3.One * pop;
             float alpha = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;
             label.Modulate = label.Modulate with { A = alpha };
-            label.OutlineModulate = label.OutlineModulate with { A = 0.85f * alpha };
+            label.OutlineModulate = label.OutlineModulate with { A = 0.95f * alpha };
             _live[i] = (label, age, drift);
         }
     }

@@ -304,7 +304,9 @@ seabed by the rules below.
   and ≥ 39 m from the start (their keep-outs never reach a stamp), and clear of
   the stamps' canyon lines; exactly one sits "early", 39–47 m from the start —
   the shop if the level has one (usually; to teach the economy), else a
-  treasure room.
+  treasure room, else another place. The shell cache never sits early (it keeps
+  to the middle of the way), so a level whose only place is the cache has no
+  early place.
 
 **Stage 2 — Route canyons.** 3–4 canyons from start to exit, laid out
 between the places, before any rock exists:
@@ -527,6 +529,21 @@ levels: ~5–7 min rushed, ~30 min explored.
 
 The Below principle: **small warm pools of light in overwhelming dark**, except
 our "campfires" are bioluminescent and the dark is the ocean itself.
+
+**Her glow lands on the floor.** In daylight bioluminescence does not read as
+brightness; it reads as a warm tint on nearby surfaces and as shadow contrast.
+So whatever lies below Clementine carries two marks, from the first minute:
+- a broad **warm pool** (about 3 m; ×√glow, so Lantern Pearl widens it),
+  tinting the floor toward her tangerine — a hue, not a glare, so it shows on
+  pale sand too and the reef itself advertises her;
+- a small soft **contact shadow** straight under the bell (about 1.2× its
+  radius), the dark anchor her bright body needs to pop.
+
+Both are laid on in the water pass (`topdown_post.gdshader`, from the
+`her_glow` globals that BellView sets each frame) after the floor's haze and
+blur, so neither is washed out; only on what lies below her (never rock over
+her head), fading as the gap below her grows and as she turns head-down into
+a dive. She is drawn after that pass, so the shadow never darkens her.
 
 ### 5.1 Per-depth light budget (drives palette, mood, and difficulty readability)
 
@@ -779,14 +796,25 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   the canopy layer has its own fade). A canopy fading over Clementine is drawn unblurred while it fades.
 - **Combat** (`PlaneCombat.cs`; the Depth-1 bestiary is being ported onto the plane, the Pufferling first): Clementine has
   100 HP (shown by the gonad rings on her bell, §2.5; the run's play time, stopped while paused, top centre) and shoots toward the mouse (held) or the
-  arrow keys — 10 damage, 4–5 volleys a second. Her shots are translucent bubbles: thrown at 17 m/s, they slow
-  steadily (constant deceleration) to a stop about 11 m out, hang still there for 0.3 s and pop; they pop on a mob or
-  on rock first if they meet one (piercing and boomerang bubbles fly on through mobs). Two of her bubbles that touch
-  merge into one (bubbles of one volley never do): it keeps the faster one's speed and heading (the two momenta
-  added), the longer life, and the summed damage, and its radius grows by half the base per bubble merged in, so
-  three bubbles make one twice the size and three times the damage. Growth stops at 15 bubbles: a full bubble
-  still merges (taking the faster speed and heading and the longer life) but grows no bigger or stronger, and
-  shines with a rainbow sheen. A mob flashes for 0.12 s on each hit. **The mobs are corrupted Pufferlings**
+  arrow keys — 10 damage, 4–5 volleys a second. Her shots are translucent bubbles, and a bubble never stops dead:
+  thrown at 17 m/s, it slows steadily at first, then — once the water's drag (2.2 × its speed, per second) is the
+  gentler — eases off exponentially, the two meeting smoothly at about 6.5 m/s. Slower than 0.9 m/s it hovers, still
+  drifting and slowing (about 0.1 m/s left at the end), each bubble for its own time (0.8–1.2 s, rolled as it is
+  thrown, times her **bubble hover** stat, which pearls can change: Bubble Coral ×1.5); then it pops, about 11.5 m
+  from her. It only ever comes to rest by popping. They always pop on a mob (piercing and boomerang bubbles fly on through mobs). A bubble that bumps into rock
+  pops 40% of the time and otherwise bounces off (Mirror Scale's bounces are sure). Two of her bubbles that touch
+  (bubbles of one volley never do) bounce off each other: pushed apart, the bigger moving less, and turned off each
+  other like two balls (80% of the meeting speed kept; each keeps its own easing-out speed, so a bounce turns it, and
+  a bubble at rest is only nudged aside); each pops 40% of the time on the bump. A bubble is a film, not an orb: its
+  surface wobbles in a few slow modes, livelier as it moves, and it weaves a hair off its line as it goes (drawn
+  only). It pops like a real one, slowed so it reads: the film tears open where it was struck (at a random spot
+  when it simply gives out) and the hole's bright rim sweeps across it in 0.09 s, the film breaking off the rim in
+  droplets that fling on outward, one after another from the struck side to the far side, and fade in 0.26 s.
+  **With Bubble Coral** (a pearl) they merge into one instead: it keeps the
+  faster one's speed and heading (the two momenta added), the longer life, and the summed damage, and its radius
+  grows by half the base per bubble merged in, so three bubbles make one twice the size and three times the damage.
+  Growth stops at 15 bubbles: a full bubble still merges (taking the faster speed and heading and the longer life)
+  but grows no bigger or stronger, and shines with a rainbow sheen. A mob flashes for 0.12 s on each hit. **The mobs are corrupted Pufferlings**
   (docs/PUFFERLING-PROPOSAL.md, DEPTH1-BESTIARY): 60 HP; they wander about a home spot; one that sees her within 10 m
   turns to face her and drifts closer; within 8 m it blows up (0.8 s), fires 8 needles in a ring turned at random (big
   hot-pink spikes, 20 m/s, 14 m, 8 damage; a needle pops any of her bubbles it meets and flies on), stays round 0.5 s (its spines sting
@@ -800,7 +828,7 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 - **Ambushes:** the first time she enters an ambush clearing, 3–4 pufferlings appear in a ring about 5.5 m around
   her (closer in where rock is near), already facing her; the first may blow up after 0.9 s, the others 0.6 s apart. They are ordinary
   mobs from then on: she may swim away, and they stay. An ambush springs once.
-- **Pearls (first pass):** each treasure room holds one pearl she does not have yet, from the 18 ported to the
+- **Pearls (first pass):** each treasure room holds one pearl she does not have yet, from the 19 ported to the
   plane (`PlaneRun.PortedPearls`; docs/PEARLS.md marks them). They stack through the item loadout (items.json); the
   pearls she carries show as dots bottom left, and taking one shows its name and tagline.
   - **Shots:** Triple Tentacle (3-shot fan), Hammerhead (5-shot cone), Anglerfish Lure (homing), Swordfish Bill
@@ -817,6 +845,8 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
   - **Captain's Hook:** every hit shoves a mob along the shot (1.5 m/s, easing off at 6/s, so about 0.25 m); the hook
     makes it ×2.5. Queen Clam is never shoved.
   - **Remora Sucker:** shells drift to her from 7.5 m instead of 2.5 m.
+  - **Bubble Coral:** her bubbles that touch merge into one, bigger and stronger, instead of bouncing apart, and they
+    hover ×1.5 as long (see Combat above).
   - **Lantern Pearl:** her glow (its light) reaches ×1.8 as far and shines brighter, and she reveals the minimap's fog
     ×1.4 as far around her.
   - **Active pearls (F):** she holds one at a time (the last taken; a new one comes charged). Used, it empties and
@@ -825,7 +855,9 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
     and spines are turned away; it wobbles when struck and flickers before it goes). **Whale Song** (40 s): heals 35 HP,
     three rings of sound swelling out from her; not usable at full HP ("Already at full health").
 - **Shells (the currency, first pass, `PlaneEconomy.cs`):** small shells lie in caches at the shell cache (6–9),
-  and secret rooms (8–12), and every defeated mob drops 1–2; they drift to her from 2.5 m. The shop
+  and secret rooms (8–12); they drift to her from 2.5 m. A freed mob leaves a **heart** (6%: it heals 20 HP; she
+  takes it only when hurt, otherwise it waits where it fell, a small red heart), else **shells** (30%: one, or two
+  a quarter of the time), else nothing — about one heart and six shells a level from mobs. The shop
   has three stand slots: a pearl she does not have on half the visits (30 shells), always a heart (a health top-up:
   +25 HP, 5 shells, only when hurt), and a third slot kept empty for wares to come. The
   goods float on their own (pearls as in a treasure room, the top-up as a red heart), each with a small price tag on a

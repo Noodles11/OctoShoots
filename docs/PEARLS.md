@@ -8,8 +8,8 @@
 
 | | Passive | Active | All |
 |---|---|---|---|
-| Pearls | 52 | 11 | 63 |
-| Built | 16 | 2 | 18 |
+| Pearls | 53 | 11 | 64 |
+| Built | 17 | 2 | 19 |
 
 - **Passive** pearls work on their own from the moment she absorbs one: her stats, her bubbles, or something that
   happens when she is hit or frees a creature. They stack.
@@ -90,6 +90,7 @@
 |  | **Bubble Gland** | *Always one more in reserve* | +3 bubbles on the tentacle | ★★ | treasure, shop |  |
 |  | **Anemone Pump** | *Squeeze, refill, repeat* | ×1.6 bubble regrowth speed | ★★ | treasure, shop |  |
 |  | **Twin Siphon** | *Two at a time* | +1 bubbles per throw; ×0.85 shot damage | ★★★ | treasure, boss |  |
+| ✅ | **Bubble Coral** | *Little ones grow up* | ×1.5 bubble hover time; Bubbles that touch merge into one, bigger and stronger | ★★ | treasure, shop |  |
 
 ## Active pearls (F, recharge over time)
 
