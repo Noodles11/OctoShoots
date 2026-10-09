@@ -33,6 +33,11 @@ public partial class PufferlingView : Node3D
     }
 
     readonly Dictionary<object, Fish> _fish = new();
+    /// <summary>Freed poofs whose light is still drifting home to Clementine (for HomeSeconds), and where she is.</summary>
+    readonly List<(CpuParticles3D Bubbles, float Age)> _poofs = new();
+    Vector3 _her;
+    ShaderMaterial? _poofMaterial;
+    const float HomeSeconds = 0.5f, HomePull = 7f;
     readonly List<Falling> _falling = new();
     ArrayMesh _mesh = null!;
     ShaderMaterial _material = null!;
@@ -112,6 +117,8 @@ public partial class PufferlingView : Node3D
     public void Sync(PlaneWorld world, float dt)
     {
         _time += dt;
+        _her = new Vector3(world.Player.Position.X, LevelMap.SwimBand, world.Player.Position.Y);
+        StepPoofs(dt);
         var seen = new HashSet<object>();
         foreach (var mob in world.Mobs)
         {
@@ -201,12 +208,13 @@ public partial class PufferlingView : Node3D
             Explosiveness = 0.9f,
             Amount = 28,
             Lifetime = 1.4f,
-            Mesh = new SphereMesh { Radius = 0.07f, Height = 0.14f, RadialSegments = 8, Rings = 4, Material = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") } },
+            // Light bubbles: the light that freed it, little lanterns that drift home to her before they rise away.
+            Mesh = new SphereMesh { Radius = 0.07f, Height = 0.14f, RadialSegments = 8, Rings = 4, Material = PoofMaterial() },
             Direction = Vector3.Up,
             Spread = 180f,
             InitialVelocityMin = 1.2f,
             InitialVelocityMax = 3f,
-            Gravity = new Vector3(0f, 1.2f, 0f),
+            Gravity = HomeGravity(at),
             DampingMin = 1.5f,
             DampingMax = 2f,
             ScaleAmountMin = 0.6f,
@@ -214,6 +222,7 @@ public partial class PufferlingView : Node3D
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
         AddChild(bubbles);
+        _poofs.Add((bubbles, 0f));
         GetTree().CreateTimer(2.5f).Timeout += bubbles.QueueFree;
         if (!f.HasTag) return;
         f.HasTag = false;
@@ -226,6 +235,47 @@ public partial class PufferlingView : Node3D
         falling.GlobalTransform = xf;
         float floor = _map is null ? -1f : _map.HeightAt(new System.Numerics.Vector2(xf.Origin.X, xf.Origin.Z));
         _falling.Add(new Falling { Node = falling, Floor = floor + 0.05f });
+    }
+
+    ShaderMaterial PoofMaterial()
+    {
+        if (_poofMaterial is null)
+        {
+            _poofMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") };
+            _poofMaterial.SetShaderParameter("base_light", 0.6f);
+        }
+        return _poofMaterial;
+    }
+
+    /// <summary>The pull home: toward her on the swim layer, with a little lift so the light still reads as bubbles.</summary>
+    Vector3 HomeGravity(Vector3 from)
+    {
+        var to = _her - from;
+        to.Y = 0f;
+        return (to.LengthSquared() > 1e-4f ? to.Normalized() * HomePull : Vector3.Zero) + Vector3.Up * 0.4f;
+    }
+
+    /// <summary>Freed poofs: for HomeSeconds the light drifts toward her (re-aimed as she moves), then rises away.</summary>
+    void StepPoofs(float dt)
+    {
+        for (int i = _poofs.Count - 1; i >= 0; i--)
+        {
+            var (bubbles, age) = _poofs[i];
+            age += dt;
+            if (!IsInstanceValid(bubbles))
+            {
+                _poofs.RemoveAt(i);
+                continue;
+            }
+            if (age >= HomeSeconds)
+            {
+                bubbles.Gravity = new Vector3(0f, 1.2f, 0f);
+                _poofs.RemoveAt(i);
+                continue;
+            }
+            bubbles.Gravity = HomeGravity(bubbles.Position);
+            _poofs[i] = (bubbles, age);
+        }
     }
 
     void StepFalling(float dt)

@@ -6,6 +6,8 @@
 // fading out — ever more transparent — as their quarters go, the last one pulsing slowly when it is all she has
 // left); the rim is her
 // active pearl's charge, a light sweeping clockwise from the top of the screen, breathing gold when ready.
+// She spends light to shoot (docs/LIGHT-BUBBLES.md): `breath` dims her a little as she throws bubbles and rekindles it
+// as she rests. Never dark: she is always the warm light.
 //   UV: x runs apex (0) → margin (1), y is the angle (0..1). UV2: the bell's plan, unit disk.
 // The contraction (`pulse`) is matched on the CPU by BellView.MarginAt, which anchors the tentacles to the margin.
 shader_type spatial;
@@ -16,6 +18,7 @@ uniform float wave = 1.0;       // the light wave's position along the bell, 0 a
 uniform float hurt = 0.0;       // magenta flash, 1 → 0
 uniform float ink = 0.0;        // the ink dash's ghosting, 0..1
 uniform float glow = 1.0;
+uniform float breath = 1.0;     // her light reserve: 0.85 (just spent a volley of light bubbles) → 1 (rekindled)
 uniform float health = 1.0;     // her HP as a share of her max, 0..1 (eased on the CPU)
 uniform float charge = -1.0;    // the active pearl's charge 0..1 (1 ready); below 0, she holds none
 uniform float snuff = 0.0;      // just used: 1 → 0, the gold whipping off the rim counter-clockwise
@@ -150,7 +153,7 @@ void fragment() {
 	col = mix(col, flash * 1.2, hurt * 0.55);
 	// The ink dash: a dark violet ghost with a bright rim.
 	col = mix(col, vec3(0.16, 0.08, 0.26) + fres * gold * 0.8, ink * 0.55);
-	ALBEDO = col * glow;
+	ALBEDO = col * glow * breath;
 
 	float a = 0.6 + 0.2 * r * r + fres * 0.45 + gonad * 0.35 + rim_lit * 0.4 + canals * 0.2 + ring * 0.2 + margin * 0.15 + rho * 0.5 + warts * 0.15 + swell * 0.2;
 	ALPHA = clamp(a * (1.0 - ink * 0.4) + hurt * 0.2, 0.0, 0.96);

@@ -63,6 +63,28 @@ public partial class CameraRig : Node3D
     /// <summary>The reduced-motion setting: no refraction wobble in the water.</summary>
     public void SetReducedMotion(bool reduced) => _post.SetShaderParameter("wobble", reduced ? 0f : 1f);
 
+    /// <summary>Light bubbles: the halos her bubbles and their pop blooms cast on the swim layer (x, z, radius, strength).</summary>
+    public void SetBubbleLights(Vector4[] lights, int count)
+    {
+        // A vec4 array uniform, sent flattened (the form every renderer accepts).
+        for (int i = 0; i < count && i < lights.Length; i++)
+        {
+            _lights[i * 4] = lights[i].X;
+            _lights[i * 4 + 1] = lights[i].Y;
+            _lights[i * 4 + 2] = lights[i].Z;
+            _lights[i * 4 + 3] = lights[i].W;
+        }
+        _post.SetShaderParameter("bubble_lights", _lights);
+        _post.SetShaderParameter("bubble_count", Mathf.Min(count, lights.Length));
+    }
+
+    readonly float[] _lights = new float[CombatView.MaxLights * 4];
+
+    /// <summary>A big-merge kill: the screen's edges lift toward white for 60 ms.</summary>
+    public void EdgeFlash() => _edgeFlash = 1f;
+    float _edgeFlash;
+    const float EdgeFlashSeconds = 0.06f;
+
     /// <summary>The camera-shake setting.</summary>
     public bool ShakeEnabled { get; set; } = true;
 
@@ -104,5 +126,7 @@ public partial class CameraRig : Node3D
         Camera.GlobalTransform = new Transform3D(Basis.FromEuler(new Vector3(-tilt, 0f, 0f)), _focus + offset + jolt);
         _player = focus;
         _post.SetShaderParameter("player_pos", focus);
+        _edgeFlash = Mathf.MoveToward(_edgeFlash, 0f, dt / EdgeFlashSeconds);
+        _post.SetShaderParameter("edge_flash", _edgeFlash);
     }
 }

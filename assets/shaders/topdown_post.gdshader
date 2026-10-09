@@ -41,6 +41,13 @@ uniform vec3 player_pos = vec3(0.0);
 uniform vec3 halo_color : source_color = vec3(1.0, 0.77, 0.42);
 uniform float halo_radius = 8.0;
 uniform float halo_strength = 0.16;
+/// Light bubbles (docs/LIGHT-BUBBLES.md): up to 16 small halos on the swim layer, from her bubbles and the blooms they
+/// leave where they pop: x, z (world), radius (metres), strength (a share of her halo's, ≤ 0.4).
+uniform vec4 bubble_lights[16];
+uniform int bubble_count = 0;
+uniform vec3 bubble_color : source_color = vec3(1.0, 0.769, 0.420);
+/// A big-merge kill: a white lift at the screen's edges only, 1 → 0 over 60 ms.
+uniform float edge_flash = 0.0;
 /// The faint refraction wobble (0 with reduced motion).
 /// The absolute position (xz) of the world's origin: the god rays and the beneath-layer never jump after a dive.
 uniform vec2 world_origin = vec2(0.0);
@@ -189,6 +196,15 @@ void fragment() {
 	vec2 off = on_layer.xz - player_pos.xz;
 	float halo = exp(-dot(off, off) / (halo_radius * halo_radius)) * (0.35 + 0.65 * fog) * (1.0 - smoothstep(0.0, 4.0, above));
 	col += halo_color * halo * halo_strength * (0.6 + 0.8 * reef_menace);
+	// Her bubbles carry light: each a small halo of its own on the same layer, the same depth-darkness scaling as hers
+	// (subtle in the bright Shallows, glorious in the deep).
+	float bubbles = 0.0;
+	for (int i = 0; i < bubble_count; i++) {
+		vec4 b = bubble_lights[i];
+		vec2 ob = on_layer.xz - b.xy;
+		bubbles += exp(-dot(ob, ob) / (b.z * b.z)) * b.w;
+	}
+	col += bubble_color * bubbles * halo_strength * (0.35 + 0.65 * fog) * (1.0 - smoothstep(0.0, 4.0, above)) * (0.6 + 0.8 * reef_menace);
 
 	// Rock rising toward the camera: a soft silhouette in the water's colour, darker as the depths darken.
 	vec3 shade = mix(reef_murk * 0.45, vec3(0.01, 0.015, 0.02), reef_menace);
@@ -206,6 +222,8 @@ void fragment() {
 	vec2 d = (uv - 0.5) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0);
 	float v = smoothstep(0.32, 1.05, length(d) * 1.3);
 	col = mix(col, reef_murk * 0.25, v * reef_vignette);
+	// A big-merge kill lifts the screen's edges toward white for an instant (never its middle).
+	col = mix(col, vec3(1.0, 0.97, 0.9), edge_flash * 0.55 * smoothstep(0.45, 1.15, length(d) * 1.3));
 
 	ALBEDO = max(col, vec3(0.0));
 }

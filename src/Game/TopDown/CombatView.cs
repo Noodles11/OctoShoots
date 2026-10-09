@@ -31,13 +31,54 @@ public partial class CombatView : Node3D
     StandardMaterial3D _clamPearl = null!, _royalPearl = null!;
     float _time;
 
+    // Light bubbles (docs/LIGHT-BUBBLES.md): every bubble of hers carries a lantern, glows in the water and lights the
+    // swim layer round it; where one pops it leaves a bloom of light; merges pulse and chime; kills flare by merge count.
+    /// <summary>A bubble's core brightness: dim and warm alone, ×1.35 per bubble merged in, capped below her bell's.</summary>
+    public static float CoreLight(int bubbles) => Mathf.Min(BaseLight * Mathf.Pow(MergeGain, bubbles - 1), MaxLight);
+    /// <summary>From her gold (one bubble) to white-gold (a full one).</summary>
+    public static float Warmth(int bubbles) => Mathf.Clamp((bubbles - 1) / (float)(PlaneCombatTuning.BubbleCap - 1), 0f, 1f);
+    const float BaseLight = 0.32f, MergeGain = 1.35f, MaxLight = 1f;
+    /// <summary>The glow round a bubble: a fixed 0.8 m disc whose strength grows with merging, ≤ 0.4 of her halo.</summary>
+    const float HaloRadius = 0.8f, HaloMin = 0.16f, HaloMax = 0.4f;
+    /// <summary>Their light on the swim layer: radius in metres (never past 3, merged or not), strength as a share of hers.</summary>
+    const float GroundRadius = 1.5f, GroundStrength = 0.35f;
+    /// <summary>Halos past this distance from her are off screen and not sent.</summary>
+    const float LightReach = 25f;
+    public const int MaxLights = 16;
+    /// <summary>The pop: the lantern flares (×1.5) for 150 ms; the bloom it leaves fades over a second.</summary>
+    const float FlareSeconds = 0.15f, FlareGain = 1.5f, BloomSeconds = 1f, BloomRadius = 1.5f;
+    /// <summary>A merge pulses for 200 ms; a kill by a bubble of at least BigKill flashes the screen's edges.</summary>
+    const float MergePulseSeconds = 0.2f;
+    public const int BigKill = 6;
+
+    /// <summary>A bubble merged here, into one of this many: the view pulses; the listener chimes (pitch climbing).</summary>
+    public event System.Action<Vector3, int>? Merged;
+
+    /// <summary>The swim-layer lights this frame, brightest first, for the post pass.</summary>
+    public Vector4[] Lights { get; } = new Vector4[MaxLights];
+    public int LightCount { get; private set; }
+
+    sealed class Bloom
+    {
+        public System.Numerics.Vector2 At;
+        public float Age, Life, Strength, Radius;
+    }
+
+    readonly List<Bloom> _blooms = new();
+    readonly List<MeshInstance3D> _halos = new();
+    ShaderMaterial _halo = null!;
+    readonly QuadMesh _haloQuad = new() { Size = new Vector2(2f, 2f) };
+    /// <summary>Her bubbles as last drawn: where each was and how many it held (pops and kills look the bubble up).</summary>
+    Dictionary<PlaneShot, (System.Numerics.Vector2 At, int Bubbles)> _seen = new(), _seenNext = new();
+    readonly List<(System.Numerics.Vector2 At, float Strength, float Radius)> _candidates = new();
+
     public override void _Ready()
     {
+        _halo = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/bubble_halo.gdshader"), RenderPriority = -1 };
         _needleMesh = PufferlingView.NeedleMesh();
         _needle = PufferlingView.NeedleMaterial();
         _herShot = Glow(new Color(1f, 0.85f, 0.65f));
         _bubble = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader") };
-        _herPearl = BellView.PearlMaterial();
         _theirShot = Glow(new Color(1f, 0.25f, 0.3f));
         _clamPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.96f, 0.9f), Roughness = 0.12f, Metallic = 0.3f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.82f, 0.9f), EmissionEnergyMultiplier = 0.9f };
         _royalPearl = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.85f, 0.45f), Roughness = 0.1f, Metallic = 0.5f, RimEnabled = true, Rim = 1f, EmissionEnabled = true, Emission = new Color(1f, 0.6f, 0.95f), EmissionEnergyMultiplier = 1.6f };
@@ -239,8 +280,12 @@ public partial class CombatView : Node3D
             _stands.Add(node);
         }
         foreach (var s in _shots) s.QueueFree();
+        foreach (var h in _halos) h.QueueFree();
         foreach (var q in _pearls) q.QueueFree();
         _shots.Clear();
+        _halos.Clear();
+        _merges.Clear();
+        ClearLights();
         _pearls.Clear();
         _catalog = catalog;
         _pearlBorn.Clear();
@@ -293,7 +338,7 @@ public partial class CombatView : Node3D
         public Vector3[] DropAt = null!, DropVel = null!;
         public float[] DropBorn = null!;
         public Vector3 Impact;
-        public float Radius, Age;
+        public float Radius, Age, Light;
     }
 
     /// <summary>The film's droplets: small, bright, fading on their own.</summary>
@@ -305,9 +350,10 @@ public partial class CombatView : Node3D
             Code = @"shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, shadows_disabled;
 instance uniform float fade = 1.0;
+instance uniform float lantern = 0.0;
 void fragment() {
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 1.5);
-	ALBEDO = mix(vec3(0.92, 0.98, 1.0), vec3(1.0), rim);
+	ALBEDO = mix(mix(vec3(0.92, 0.98, 1.0), vec3(1.0, 0.86, 0.6), lantern), vec3(1.0, 0.97, 0.9), rim);
 	ALPHA = clamp((0.55 + 0.45 * rim) * fade, 0.0, 1.0);
 }",
         },
@@ -316,7 +362,6 @@ void fragment() {
     readonly List<PopFx> _pops = new();
     readonly SphereMesh _unitSphere = new() { Radius = 1f, Height = 2f, RadialSegments = 20, Rings = 10 };
     ShaderMaterial _bubble = null!;
-    StandardMaterial3D _herPearl = null!;
 
     const float BlastSeconds = 0.65f;
 
@@ -389,12 +434,45 @@ void fragment() {
         }
     }
 
+    readonly Dictionary<PlaneShot, float> _merges = new();
+
+    /// <summary>
+    /// The swim-layer lights for the post pass: every bubble of hers and every bloom still glowing, within reach of her,
+    /// the brightest MaxLights of them (the rest glow on their own only). Strength never passes 0.4 of her halo.
+    /// </summary>
+    void SyncLights(PlaneWorld world, float dt)
+    {
+        for (int i = _blooms.Count - 1; i >= 0; i--)
+        {
+            var b = _blooms[i];
+            b.Age += dt;
+            if (b.Age >= b.Life)
+            {
+                _blooms.RemoveAt(i);
+                continue;
+            }
+            float k = 1f - b.Age / b.Life;
+            _candidates.Add((b.At, GroundStrength * b.Strength * k * k, b.Radius));
+        }
+        var her = world.Player.Position;
+        int count = 0;
+        foreach (var (at, strength, radius) in _candidates.Where(c => c.Strength > 0.005f && System.Numerics.Vector2.Distance(c.At, her) <= LightReach).OrderByDescending(c => c.Strength))
+        {
+            if (count == MaxLights) break;
+            Lights[count++] = new Vector4(at.X, at.Y, radius, Mathf.Min(strength, HaloMax));
+        }
+        LightCount = count;
+    }
+
     /// <summary>
     /// A bubble popped here (on a mob, on rock, on another bubble, or where it hovered). toward: from its centre to where
     /// the film gave way, on the plane; the tear starts there, tipped a little up toward the camera.
     /// </summary>
     public void Pop(System.Numerics.Vector2 at, float radius, System.Numerics.Vector2 toward)
     {
+        // Her light, spent: the lantern flares and goes out, and leaves a bloom of light on the water for a second.
+        int bubbles = BubblesNear(at, radius + 1.5f);
+        if (bubbles > 0) AddBloom(at, CoreLight(bubbles), BloomSeconds, BloomRadius);
         var node = new Node3D { Position = new Vector3(at.X, LevelMap.SwimBand, at.Y) };
         AddChild(node);
         var impact = new Vector3(toward.X, 0.35f, toward.Y);
@@ -403,6 +481,7 @@ void fragment() {
         shell.SetInstanceShaderParameter("hole", new Vector4(impact.X, impact.Y, impact.Z, 0f));
         shell.SetInstanceShaderParameter("wobble", 0.6f);
         shell.SetInstanceShaderParameter("seed", (float)GD.RandRange(0.0, 10.0));
+        shell.SetInstanceShaderParameter("warmth", Warmth(Mathf.Max(bubbles, 1)));
         node.AddChild(shell);
         var drops = new MeshInstance3D[Droplets];
         var place = new Vector3[Droplets];
@@ -423,9 +502,50 @@ void fragment() {
             vel[i] = (sweep * 1.1f + p * 0.7f) * radius * (6f + 3f * (float)GD.Randf());
             place[i] = p;
             drops[i] = new MeshInstance3D { Mesh = _unitSphere, MaterialOverride = DropletMaterial(), Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            drops[i].SetInstanceShaderParameter("lantern", bubbles > 0 ? 1f : 0f);
             node.AddChild(drops[i]);
         }
-        _pops.Add(new PopFx { Node = node, Shell = shell, Drops = drops, DropAt = place, DropVel = vel, DropBorn = born, Impact = impact, Radius = radius });
+        _pops.Add(new PopFx { Node = node, Shell = shell, Drops = drops, DropAt = place, DropVel = vel, DropBorn = born, Impact = impact, Radius = radius, Light = bubbles > 0 ? CoreLight(bubbles) : 0f });
+    }
+
+    /// <summary>
+    /// A mob freed (defeated) here: the light that washed it flares, brighter for a bigger bubble. Returns how many
+    /// bubbles the one that freed it held (1 when no bubble of hers was near: a dash, an ink cloud).
+    /// </summary>
+    public int Kill(System.Numerics.Vector2 at)
+    {
+        int bubbles = Mathf.Max(BubblesNear(at, 3f), 1);
+        float k = Warmth(bubbles);
+        AddBloom(at, Mathf.Min(0.8f + 1.4f * k, 2.2f), 0.6f + 0.5f * k, Mathf.Min(1.8f + 1.2f * k, 3f));
+        return bubbles;
+    }
+
+    /// <summary>How many bubbles the bubble of hers last seen nearest this point held (0: none within reach).</summary>
+    int BubblesNear(System.Numerics.Vector2 at, float reach)
+    {
+        int best = 0;
+        float nearest = reach * reach;
+        foreach (var (_, (pos, bubbles)) in _seen)
+        {
+            float d = System.Numerics.Vector2.DistanceSquared(pos, at);
+            if (d <= nearest)
+            {
+                nearest = d;
+                best = bubbles;
+            }
+        }
+        return best;
+    }
+
+    void AddBloom(System.Numerics.Vector2 at, float strength, float life, float radius) =>
+        _blooms.Add(new Bloom { At = at, Strength = strength, Life = life, Radius = Mathf.Min(radius, 3f) });
+
+    /// <summary>A new room: no light carries over.</summary>
+    public void ClearLights()
+    {
+        _blooms.Clear();
+        _seen.Clear();
+        LightCount = 0;
     }
 
     public void Sync(PlaneWorld world, float dt)
@@ -436,11 +556,17 @@ void fragment() {
             var s = new MeshInstance3D { Mesh = _unitSphere, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
             AddChild(s);
             _shots.Add(s);
+            var halo = new MeshInstance3D { Mesh = _haloQuad, MaterialOverride = _halo, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Scale = Vector3.One * HaloRadius, Visible = false };
+            AddChild(halo);
+            _halos.Add(halo);
         }
+        _candidates.Clear();
+        _seenNext.Clear();
         for (int i = 0; i < _shots.Count; i++)
         {
             bool used = i < world.Shots.Count;
             _shots[i].Visible = used;
+            _halos[i].Visible = false;
             if (!used) continue;
             var shot = world.Shots[i];
             _shots[i].Position = new Vector3(shot.Position.X, LevelMap.SwimBand, shot.Position.Y);
@@ -455,18 +581,13 @@ void fragment() {
                 continue;
             }
             _shots[i].Basis = Basis.Identity;
-            if (shot.FromPlayer && shot.Charged > 0.25f)
+            if (shot.FromPlayer)
             {
-                // Pearl Diver: a charged throw flies as a lustrous pearl, turning as it goes.
-                _shots[i].Scale = Vector3.One * shot.Radius * 1.3f;
-                _shots[i].Rotation = new Vector3(0f, shot.Age * 6f, 0.3f);
-                _shots[i].MaterialOverride = _herPearl;
-            }
-            else if (shot.FromPlayer)
-            {
-                // A bubble: a film that wobbles, livelier as it moves, weaving a little off its line the way a real
-                // one does (drawn only; it hits where the sim says). An Ink Sac one is dark with ink.
-                float r = shot.Radius * 1.7f;
+                // A light bubble: a film that wobbles, livelier as it moves, weaving a little off its line the way a
+                // real one does (drawn only; it hits where the sim says), with a lantern inside. An Ink Sac one is dark
+                // with ink, its lantern muffled; a Pearl Diver throw is the gathered light, a bright lantern.
+                bool charged = shot.Charged > 0.25f;
+                float r = shot.Radius * (charged ? 1.3f : 1.7f);
                 float seed = (System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(shot) & 1023) * 0.0137f;
                 float speed = shot.Velocity.Length();
                 float lively = Mathf.Clamp(speed / 8f, 0f, 1f);
@@ -474,12 +595,49 @@ void fragment() {
                 _shots[i].Position += side * Mathf.Sin(shot.Age * 11f + seed * 7f) * 0.05f * lively + Vector3.Up * 0.04f * Mathf.Sin(shot.Age * 3.1f + seed * 5f);
                 _shots[i].Scale = Vector3.One * r;
                 _shots[i].MaterialOverride = _bubble;
+
+                // Merged since the last frame: a pulse of light and a chime.
+                if (_seen.TryGetValue(shot, out var was) && shot.Bubbles > was.Bubbles)
+                {
+                    _merges[shot] = 0f;
+                    AddBloom(shot.Position, CoreLight(shot.Bubbles) * 1.2f, MergePulseSeconds, GroundRadius);
+                    Merged?.Invoke(_shots[i].Position, shot.Bubbles);
+                }
+                _seenNext[shot] = (shot.Position, shot.Bubbles);
+                float pulse = 0f;
+                if (_merges.TryGetValue(shot, out float since))
+                {
+                    since += dt;
+                    if (since >= MergePulseSeconds) _merges.Remove(shot);
+                    else
+                    {
+                        _merges[shot] = since;
+                        pulse = Mathf.Sin(Mathf.Pi * since / MergePulseSeconds);
+                    }
+                }
+                // Hanging at the end of its range: it breathes slowly like an ember, live for a merge or a dash.
+                float ember = shot.Rest > 0f ? 0.78f + 0.22f * Mathf.Sin(_time * 2.4f + seed * 9f) : 1f;
+                float light = (charged ? Mathf.Max(CoreLight(shot.Bubbles), 0.75f) : CoreLight(shot.Bubbles)) * ember * (1f + 0.5f * pulse);
+                float warmth = charged ? Mathf.Max(Warmth(shot.Bubbles), 0.5f) : Warmth(shot.Bubbles);
+                bool full = shot.Bubbles >= PlaneCombatTuning.BubbleCap;
                 _shots[i].SetInstanceShaderParameter("seed", seed);
-                _shots[i].SetInstanceShaderParameter("wobble", 0.45f + 0.55f * lively);
+                _shots[i].SetInstanceShaderParameter("wobble", (0.45f + 0.55f * lively) * (charged ? 0.5f : 1f));
                 _shots[i].SetInstanceShaderParameter("hole", new Vector4(0f, 1f, 0f, 0f));
                 _shots[i].SetInstanceShaderParameter("fade", 1f);
                 _shots[i].SetInstanceShaderParameter("ink", shot.Explosive ? 1f : 0f);
-                _shots[i].SetInstanceShaderParameter("rainbow", shot.Bubbles >= PlaneCombatTuning.BubbleCap ? 1f : 0f);
+                // A full bubble is a small star: the rainbow sheen becomes its faint corona.
+                _shots[i].SetInstanceShaderParameter("rainbow", full ? 0.55f : 0f);
+                _shots[i].SetInstanceShaderParameter("lantern", light);
+                _shots[i].SetInstanceShaderParameter("warmth", warmth);
+
+                // Its glow in the water: a fixed-size disc, stronger (never wider) as it merges.
+                float k = Mathf.Clamp(light / MaxLight, 0f, 1.5f);
+                var halo = _halos[i];
+                halo.Visible = true;
+                halo.Position = _shots[i].Position;
+                halo.SetInstanceShaderParameter("strength", Mathf.Min(Mathf.Lerp(HaloMin, HaloMax, Warmth(shot.Bubbles)) * (0.6f + 0.4f * k), HaloMax) * (shot.Explosive ? 0.4f : 1f));
+                halo.SetInstanceShaderParameter("color", new Color(1f, 0.769f, 0.42f).Lerp(new Color(1f, 0.95f, 0.84f), warmth));
+                _candidates.Add((shot.Position, GroundStrength * Mathf.Min(k, 1f) * (shot.Explosive ? 0.4f : 1f), GroundRadius));
             }
             else if (shot.BossPearl)
             {
@@ -493,6 +651,9 @@ void fragment() {
                 _shots[i].MaterialOverride = _theirShot;
             }
         }
+        (_seen, _seenNext) = (_seenNext, _seen);
+        foreach (var gone in _merges.Keys.Where(key => !_seen.ContainsKey(key)).ToList()) _merges.Remove(gone);
+        SyncLights(world, dt);
 
         // Popping bubbles: the tear opens from the struck point and sweeps the film away; droplets break off the rim
         // as it passes and fly on, shrinking and fading.
@@ -511,6 +672,8 @@ void fragment() {
             open = open * open * (1.6f - 0.6f * open);
             pop.Shell.Visible = open < 1f;
             pop.Shell.SetInstanceShaderParameter("hole", new Vector4(pop.Impact.X, pop.Impact.Y, pop.Impact.Z, Mathf.Max(open, 0.001f)));
+            // The lantern flares as the film gives way, then dies.
+            pop.Shell.SetInstanceShaderParameter("lantern", pop.Light * FlareGain * Mathf.Max(0f, 1f - pop.Age / FlareSeconds));
             for (int d = 0; d < pop.Drops.Length; d++)
             {
                 float t = pop.Age - pop.DropBorn[d];
@@ -520,6 +683,7 @@ void fragment() {
                 pop.Drops[d].Position = pop.DropAt[d] * pop.Radius + pop.DropVel[d] * t * (1f - 0.45f * k);
                 pop.Drops[d].Scale = Vector3.One * pop.Radius * 0.11f * (1f - 0.6f * k);
                 pop.Drops[d].SetInstanceShaderParameter("fade", 1f - k * k);
+                if (pop.Light > 0f) pop.Drops[d].SetInstanceShaderParameter("lantern", Mathf.Max(0f, 1f - pop.Age / (FlareSeconds * 2f)));
             }
         }
 

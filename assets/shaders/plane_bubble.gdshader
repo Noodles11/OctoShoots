@@ -5,6 +5,10 @@
 // own phase), livelier as it moves. `hole` pops it the way a real one goes: the film tears open at a point (xyz, a
 // unit direction from the centre, in world axes) and the hole's rim races across it (w: 0 whole → 1 gone), the
 // rim bright where the torn film gathers. `ink` (Ink Sac) fills it with a dark violet heart under a violet rim.
+// Light bubbles (docs/LIGHT-BUBBLES.md): each of hers carries a small warm lantern inside the film. `lantern` is the
+// lantern's brightness (0: a plain film, as the shield and other bubbles), `warmth` shifts it from her gold (#FFC46B,
+// the gonads' gold) toward white-gold as bubbles merge. `base_light` lights every instance at once (particles).
+// The core is capped below her bell's peak: she stays the warmest light on screen.
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_back, unshaded, shadows_disabled;
 
@@ -14,6 +18,11 @@ instance uniform float ink = 0.0;
 instance uniform float seed = 0.0;
 instance uniform float wobble = 0.0;
 instance uniform vec4 hole = vec4(0.0, 1.0, 0.0, 0.0);
+instance uniform float lantern = 0.0;
+instance uniform float warmth = 0.0;
+uniform float base_light = 0.0;
+uniform vec3 gold : source_color = vec3(1.0, 0.769, 0.420);
+const float CORE_MAX = 1.12;
 
 varying vec3 dir_local;
 
@@ -53,6 +62,18 @@ void fragment() {
 	vec3 heart = mix(vec3(0.07, 0.02, 0.12), vec3(0.3, 0.1, 0.45), swirl * 0.6);
 	ALBEDO = mix(ALBEDO, mix(heart, vec3(0.75, 0.45, 1.0), rim), ink);
 	ALPHA = mix(ALPHA, clamp((0.72 - 0.3 * rim + 0.6 * rim * rim + glint) * fade, 0.0, 1.0), ink);
+	// The lantern: a hot point in the middle (facing the eye), a soft warm fill through the film, the rim left to
+	// the iridescence. A maxed bubble is a small white-gold star; the rainbow above becomes its corona.
+	float lamp = lantern + base_light;
+	if (lamp > 0.0) {
+		float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+		float core = pow(facing, 5.0);
+		float fill = pow(facing, 1.6);
+		vec3 hue = mix(gold, vec3(1.0, 0.95, 0.84), clamp(warmth, 0.0, 1.0));
+		vec3 glow = hue * (1.15 * core + 0.32 * fill) * lamp * (1.0 - 0.75 * ink);
+		ALBEDO = min(ALBEDO * (1.0 - 0.6 * fill * min(lamp, 1.0)) + glow, vec3(CORE_MAX));
+		ALPHA = max(ALPHA, clamp((0.95 * core + 0.3 * fill) * min(lamp * 1.5, 1.0), 0.0, 1.0) * fade);
+	}
 	ALBEDO = mix(ALBEDO, vec3(1.0, 1.0, 0.97), torn_rim * 0.85);
 	ALPHA = max(ALPHA, torn_rim * 0.9 * fade);
 }

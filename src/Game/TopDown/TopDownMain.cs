@@ -71,6 +71,8 @@ public partial class TopDownMain : Node3D
     PauseMenu _pause = null!;
     ViewOptions _view = null!;
     DamageNumbers _damage = null!;
+    Sfx _sfx = null!;
+    float _lastChime = -1f;
     PanelContainer _debugPanel = null!;
 
     // On death: fade to the death splash, wait for the player, generate a new run's first level, fade back in.
@@ -162,6 +164,15 @@ public partial class TopDownMain : Node3D
         _camera.ZoomSetting = view.CameraZoom;
         _damage = new DamageNumbers();
         AddChild(_damage);
+        _sfx = new Sfx();
+        AddChild(_sfx);
+        // Light bubbles: a merge chimes, a semitone higher for every bubble it holds (at most one chime per 60 ms).
+        _combat.Merged += (_, bubbles) =>
+        {
+            if (_elapsed - _lastChime < 0.06f) return;
+            _lastChime = _elapsed;
+            _sfx.PlayPitched("merge", Mathf.Pow(2f, (bubbles - 2) / 12f), -8f);
+        };
         _camera.SetReducedMotion(view.ReducedMotion);
         var sun = _sunLight = new SunLight();
         AddChild(sun);
@@ -503,6 +514,7 @@ public partial class TopDownMain : Node3D
         _puffers.Show(_world);
         _combat.Visible = _boss.Visible = _puffers.Visible = true;
         _damage.Clear();
+        _camera.SetBubbleLights(_combat.Lights, 0);
         _boss.Show(_world);
         if (_bossHp is { } bossHp && _world.Boss is { } queen) queen.Hp = bossHp;
         _debugMap.SetMap(_map);
@@ -708,7 +720,19 @@ public partial class TopDownMain : Node3D
                     // Harder hits jolt more: a mob shot (10) ~0.42, the boss's snap (18) ~0.5.
                     _camera.Shake(Mathf.Clamp(0.3f + e.Size * 0.011f, 0.3f, 0.55f));
                 }
-                else if (e.Type is PlaneEventType.MobHit or PlaneEventType.MobDefeated or PlaneEventType.BossHit) _damage.Show(e);
+                else if (e.Type == PlaneEventType.MobDefeated)
+                {
+                    _damage.Show(e);
+                    // Freed by light: the flash grows with the bubble that did it; a big one rings her bell and lifts
+                    // the screen's edges (not with reduced motion).
+                    if (_combat.Kill(e.Position) >= CombatView.BigKill)
+                    {
+                        if (!_view.ReducedMotion) _camera.EdgeFlash();
+                        _sfx.PlayPitched("bell_ring", 1f, -10f);
+                    }
+                }
+                else if (e.Type == PlaneEventType.Shot) _bell.Spend(e.Size);
+                else if (e.Type is PlaneEventType.MobHit or PlaneEventType.BossHit) _damage.Show(e);
                 else if (e.Type == PlaneEventType.ShotPopped) _combat.Pop(e.Position, e.Size * 1.7f, e.Direction);
                 else if (e.Type == PlaneEventType.InkBlast)
                 {
@@ -752,6 +776,7 @@ public partial class TopDownMain : Node3D
 
         _bell.Sync(_world, alpha, dt);
         _combat.Sync(_world, dt);
+        _camera.SetBubbleLights(_combat.Lights, _combat.LightCount);
         _currents.Sync(_world, dt);
         _vases.Sync(dt);
         _puffers.Sync(_world, dt);

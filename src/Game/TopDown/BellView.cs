@@ -64,7 +64,13 @@ public partial class BellView : Node3D
 
     /// <summary>Pearl Diver: the pearl swelling in front of her while she charges it.</summary>
     MeshInstance3D _chargeOrb = null!;
-    StandardMaterial3D _chargeMaterial = null!;
+    ShaderMaterial _chargeMaterial = null!;
+    /// <summary>
+    /// Light bubbles: the light she has to spend, 0..1, presentation only. Each volley spends a little (the bell dims to
+    /// 0.85 when it is gone, never dark) and it rekindles while she holds her fire.
+    /// </summary>
+    float _reserve = 1f, _breath = 1f;
+    const float SpendPerBubble = 0.07f, Rekindle = 0.45f;
 
     public override void _Ready()
     {
@@ -118,7 +124,8 @@ public partial class BellView : Node3D
         shieldMaterial.SetShaderParameter("tint", new Color(0.75f, 0.92f, 1f));
         _shield = new MeshInstance3D { Mesh = sphere, MaterialOverride = shieldMaterial, Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         AddChild(_shield);
-        _chargeMaterial = PearlMaterial();
+        // Pearl Diver's charge: the light she gathers to throw, the same lantern as her bubbles (one substance).
+        _chargeMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://assets/shaders/plane_bubble.gdshader"), RenderPriority = 3 };
         _chargeOrb = new MeshInstance3D { Mesh = sphere, MaterialOverride = _chargeMaterial, Visible = false, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
         AddChild(_chargeOrb);
         _inkMaterial = new StandardMaterial3D
@@ -150,6 +157,9 @@ public partial class BellView : Node3D
 
     /// <summary>The shield turned a hit away: it wobbles.</summary>
     public void ShieldRipple() => _ripple = 1f;
+
+    /// <summary>She threw a volley of light bubbles (how many): her bell gives up a little of its light.</summary>
+    public void Spend(float bubbles) => _reserve = Mathf.Max(0f, _reserve - SpendPerBubble * Mathf.Max(bubbles, 1f));
 
     /// <summary>A hard stroke now (the dive's first contraction).</summary>
     public void Kick()
@@ -242,13 +252,16 @@ public partial class BellView : Node3D
         _bellMaterial.SetShaderParameter("wave", _phase < 0.55f ? _phase / 0.55f : 1.3f);
         _bellMaterial.SetShaderParameter("hurt", _hurt);
         _bellMaterial.SetShaderParameter("ink", _inkGhost);
+        _reserve = Mathf.Min(1f, _reserve + Rekindle * h);
+        _breath = Mathf.Lerp(_breath, 0.85f + 0.15f * _reserve, 1f - Mathf.Exp(-8f * h));
+        _bellMaterial.SetShaderParameter("breath", _breath);
         SyncVitals(world, h);
         _strandMaterial.SetShaderParameter("hurt", _hurt);
         _strandMaterial.SetShaderParameter("ink", _inkGhost);
         // Lantern Pearl: her glow reaches farther and shines brighter.
         float glow = world.Run.Loadout.Stats[OctoShoots.Core.Items.Stat.Glow];
         _light.OmniRange = 11f * glow;
-        _light.LightEnergy = 2.6f * (1f + 0.4f * (glow - 1f)) * (0.94f + 0.12f * _pulse);
+        _light.LightEnergy = 2.6f * (1f + 0.4f * (glow - 1f)) * (0.94f + 0.12f * _pulse) * (0.7f + 0.3f * _breath);
         _light.LightColor = Glow.Lerp(new Color(1f, 0.3f, 0.55f), _hurt * 0.5f);
 
         if (speed > 0.3f) _across = new Vector3(-vel.Y, 0f, vel.X) / speed;
@@ -324,7 +337,10 @@ public partial class BellView : Node3D
         var aim = new Vector3(p.Aim.X, 0f, p.Aim.Y);
         _chargeOrb.Position = aim * (BellRadius + 0.25f + size) + Vector3.Down * 0.1f;
         _chargeOrb.Scale = Vector3.One * size;
-        _chargeMaterial.EmissionEnergyMultiplier = 0.25f + 0.55f * k * k + (full ? 0.25f * Mathf.Sin(_time * 14f) : 0f);
+        _chargeOrb.SetInstanceShaderParameter("lantern", 0.3f + 0.6f * k * k + (full ? 0.15f * Mathf.Sin(_time * 14f) : 0f));
+        _chargeOrb.SetInstanceShaderParameter("warmth", full ? 0.6f : 0.3f * k);
+        _chargeOrb.SetInstanceShaderParameter("seed", 1.7f);
+        _chargeOrb.SetInstanceShaderParameter("wobble", 0.3f);
     }
 
     /// <summary>The contraction over one beat: a quick squeeze, then a slow relax that overshoots into a slight flare.</summary>
