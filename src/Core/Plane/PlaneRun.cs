@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using OctoShoots.Core.Gen.TopDown;
 using OctoShoots.Core.Items;
 
@@ -12,13 +13,15 @@ public sealed class PlaneRun
 {
     /// <summary>
     /// The pearls ported to the plane so far (docs/PEARLS.md marks them): treasure rooms, shops and Queen Clam offer
-    /// only these. Passive ones first, then the active ones.
+    /// only these, and only once unlocked (a pearl with an `unlock` waits for its achievement). Passive ones first,
+    /// then the active ones.
     /// </summary>
     public static readonly string[] PortedPearls =
     {
         "triple_tentacle", "hammerhead", "anglerfish_lure", "swordfish_bill", "mirror_scale", "boomerang_shrimp", "double_helix",
         "coral_crown", "moon_jelly_heart", "shark_tooth", "pearl_diver", "starfish_arm", "ink_sac", "remora_sucker",
-        "captains_hook", "lantern_pearl", "bubble_coral",
+        "captains_hook", "lantern_pearl", "bubble_coral", "plankton_swarm", "mitosis", "giant_squid_eye",
+        "lucky_sea_glass", "pirates_doubloon",
         "bubble_shield", "whale_song",
     };
 
@@ -65,6 +68,13 @@ public sealed class PlaneRun
 
     void Rebuild() => Loadout = Loadout.Build(Catalog, Items, Tuning);
 
-    /// <summary>A pearl a treasure room may hold: a ported one the catalog knows and she does not have yet.</summary>
-    public bool CanOffer(string itemId) => Catalog is not null && Catalog.Contains(itemId) && !Items.Contains(itemId);
+    /// <summary>
+    /// The achievements earned (the profile's, shared: one earned mid-run unlocks its pearl from then on). Locked pearls
+    /// are never offered.
+    /// </summary>
+    public ISet<string> Unlocked { get; set; } = new HashSet<string>();
+
+    /// <summary>A pearl a treasure room may hold: a ported one the catalog knows, unlocked, and she does not have yet.</summary>
+    public bool CanOffer(string itemId) =>
+        Catalog is not null && Catalog.TryGet(itemId, out var item) && ItemPools.IsUnlocked(item, Unlocked) && !Items.Contains(itemId);
 }

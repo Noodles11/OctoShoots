@@ -117,14 +117,19 @@ public sealed class SuspendedRun
     public string SavedAt { get; set; } = "";
 }
 
-/// <summary>Achievement ids referenced by item unlocks.</summary>
+/// <summary>
+/// Achievement ids. The first five are the plane's (data/achievements.json; PlaneAchievements earns them); the rest
+/// are still named by the unlocks of pearls not on the plane yet, for bosses still to come.
+/// </summary>
 public static class Achievements
 {
-    public const string ThreeSynergies = "three_synergies";
+    public const string BigBubbleEnergy = "big_bubble_energy";
+    public const string BubbleBath = "bubble_bath";
+    public const string ShuckedInFifteen = "shucked_in_fifteen";
     public const string Untouchable = "untouchable";
-    public const string Ringmaster = "ringmaster";
+    public const string HermitHoarder = "hermit_hoarder";
+
     public const string Jesters = "jesters";
-    public const string MotherAngler = "mother_angler";
     public const string Siphonophore = "siphonophore";
     public const string HollowMaw = "hollow_maw";
 }

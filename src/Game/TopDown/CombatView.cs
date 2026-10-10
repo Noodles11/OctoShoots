@@ -229,7 +229,8 @@ public partial class CombatView : Node3D
         return st.Commit();
     }
 
-    public void Show(PlaneWorld world, ItemCatalog? catalog)
+    /// <param name="fresh">Pearls offered for the first time since an achievement unlocked them: they wear a NEW chip.</param>
+    public void Show(PlaneWorld world, ItemCatalog? catalog, ISet<string>? fresh = null)
     {
         foreach (var sh in _shells) sh.QueueFree();
         foreach (var st in _stands) st.QueueFree();
@@ -273,6 +274,7 @@ public partial class CombatView : Node3D
                 node.AddChild(new MeshInstance3D { Mesh = HeartMesh(), MaterialOverride = _heart ??= HeartMaterial() });
                 node.AddChild(new OmniLight3D { LightColor = new Color(1f, 0.4f, 0.45f), LightEnergy = 1.2f, OmniRange = 4f, ShadowEnabled = false });
             }
+            if (stand.Kind == StandKind.Pearl && fresh?.Contains(stand.ItemId) == true) node.AddChild(NewChip());
             var tag = PriceTag(stand.Price);
             node.AddChild(tag);
             _prices.Add(tag);
@@ -289,8 +291,26 @@ public partial class CombatView : Node3D
         _pearls.Clear();
         _catalog = catalog;
         _pearlBorn.Clear();
-        foreach (var pearl in world.Pearls) AddPearl(pearl, -10f);
+        foreach (var pearl in world.Pearls)
+        {
+            AddPearl(pearl, -10f);
+            if (fresh?.Contains(pearl.ItemId) == true) _pearls[^1].AddChild(NewChip());
+        }
     }
+
+    /// <summary>A small mint "NEW" chip floating above a pearl newly unlocked by an achievement.</summary>
+    static Label3D NewChip() => new()
+    {
+        Text = "NEW",
+        Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+        PixelSize = 0.012f,
+        FontSize = 40,
+        OutlineSize = 10,
+        Modulate = new Color(0.44f, 0.89f, 0.76f),
+        OutlineModulate = new Color(0.05f, 0.2f, 0.18f, 0.9f),
+        NoDepthTest = true,
+        Position = new Vector3(0f, 1f, 0f),
+    };
 
     ItemCatalog? _catalog;
     /// <summary>When each pearl appeared (a boss's reward floats down from above).</summary>

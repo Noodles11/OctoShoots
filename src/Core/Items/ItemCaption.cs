@@ -79,7 +79,7 @@ public static class ItemCaption
         if (s.Pierce) lines.Add("Shots pierce foes");
         if (s.Spectral) lines.Add("Shots pass through rock");
         if (s.Bounces > 0) lines.Add($"Shots bounce off rock {s.Bounces}×");
-        if (s.Split) lines.Add("Shots split in two on hit");
+        if (s.Split) lines.Add("Bubbles split in two when they pop on a foe or rock");
         if (s.Boomerang) lines.Add("Shots return to you");
         if (s.Wave) lines.Add("Shots twist in a double helix");
         if (s.Spiral) lines.Add("Shots spiral outward");
@@ -135,6 +135,7 @@ public static class ItemCaption
         "inkTrail" => "Leaves an ink trail",
         "colorCycle" => "Shots cycle through neon colours",
         "richDrops" => "Foes drop more sand dollars",
+        "richCaches" => "Shell caches hold 50% more",
         _ => flag,
     };
 

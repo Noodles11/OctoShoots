@@ -60,7 +60,7 @@ public sealed class PlaneInk
 
 public enum PlaneEventType { JetStarted, DashStarted, HitWall, Shot, MobHit, MobDefeated, MobNoticed, PlayerHit, PlayerDefeated, Dived, PufferSwells, NeedlesFired, PearlCollected, ShellCollected, HeartCollected, Purchased, CannotAfford, AmbushSprung, ShotPopped, BubbleFull,
     ChargeFull, InkBlast, ShieldBlocked, ActiveUsed, ActiveNotReady, ActiveDenied,
-    SurgeStarted, SurgeEnded, VaseHit, VaseBroken,
+    SurgeStarted, SurgeEnded, VaseHit, VaseBroken, FullBubbleFreed,
     ArenaSealed, BossLanded, BossVolley, BossClosed, BossHit, BossStagger, BossSnapWarning, BossSnap, BossDefeated, BossFreed }
 
 /// <summary>What hurt Clementine (the killing blow names what ended a run).</summary>

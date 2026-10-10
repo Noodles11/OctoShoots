@@ -95,6 +95,12 @@ public static class PlaneCombatTuning
     public const float InkBlastRadius = 1.8f, InkBlastDamage = 0.6f;
     /// <summary>A hit shoves a mob along the shot at Tuning.ShotKnockback × her knockback stat (m/s), easing off at this rate.</summary>
     public const float KnockDecay = 6f;
+    /// <summary>
+    /// Mitosis: a bubble that pops on a foe, rock or a pot splits into two, SplitAngle either side of its way on, each
+    /// with half its damage, SplitSize of its size, thrown at SplitSpeed (or its own speed, if faster) to fly SplitRange.
+    /// The halves never split again.
+    /// </summary>
+    public const float SplitAngleDeg = 40f, SplitSize = 0.75f, SplitSpeed = 9f, SplitRange = 4f;
 }
 
 /// <summary>
@@ -136,8 +142,8 @@ public sealed class PlaneShot
     public float Age;
     public float Traveled;
     public bool Homing, Pierce, Boomerang, Returning, Wave;
-    /// <summary>Starfish Arm: it grows as it flies. Ink Sac: it bursts into ink where it pops.</summary>
-    public bool Grow, Explosive;
+    /// <summary>Starfish Arm: it grows as it flies. Ink Sac: it bursts into ink where it pops. Mitosis: it splits on a pop.</summary>
+    public bool Grow, Explosive, Split;
     /// <summary>Pearl Diver: how charged it was when thrown, 0–1 (the view draws a charged one as a pearl).</summary>
     public float Charged;
     /// <summary>Bubbles: thrown at Speed0, slowing as if to stop at Range, then easing off with drag (0: a plain shot at constant speed).</summary>
@@ -435,8 +441,16 @@ public sealed partial class PlaneWorld
                 {
                     if (!mob.Alive || Vector2.Distance(mob.Position, shot.Position) > mob.Radius + shot.Radius) continue;
                     if (shot.Hit is not null && !shot.Hit.Add(mob)) continue;
-                    DamageMob(mob, shot.Damage * GrowFactor(shot), shot.Velocity);
-                    if (!shot.Pierce && !shot.Boomerang) Pop(shot, mob.Position - shot.Position);
+                    bool fresh = mob.Hp >= PlaneCombatTuning.MobHp - 0.01f;
+                    DamageMob(mob, HitDamage(shot), shot.Velocity);
+                    // A full bubble freeing a foe at full health in one hit (Big Bubble Energy).
+                    if (!mob.Alive && fresh && shot.Bubbles >= PlaneCombatTuning.BubbleCap)
+                        Events.Add(new PlaneEvent(PlaneEventType.FullBubbleFreed, mob.Position, shot.Velocity, shot.Bubbles));
+                    if (!shot.Pierce && !shot.Boomerang)
+                    {
+                        Pop(shot, mob.Position - shot.Position);
+                        SplitBubble(shot, SafeNormalize(shot.Velocity), mob);
+                    }
                     if (shot.Life <= 0f) break;
                 }
             }
@@ -447,6 +461,9 @@ public sealed partial class PlaneWorld
                 if (HurtPlayer(shot.Damage, shot.Velocity, source) && shot.Royal) p.SlowTimer = PlaneBossTuning.SlowSeconds;
             }
         }
+        // Halves split off during the step join now (the shots were being walked).
+        Shots.AddRange(_spawned);
+        _spawned.Clear();
         TouchBubbles();
         Shots.RemoveAll(s => s.Life <= 0f);
 
@@ -509,7 +526,11 @@ public sealed partial class PlaneWorld
         Run.Add(itemId);
         if (Run.Catalog is { } catalog && catalog.TryGet(itemId, out var item))
             foreach (var e in item.Effects)
-                if (e.Trigger == Trigger.OnPickup && e.Action == EffectAction.Heal) p.Hp += e.Value;
+            {
+                if (e.Trigger != Trigger.OnPickup) continue;
+                if (e.Action == EffectAction.Heal) p.Hp += e.Value;
+                if (e.Action == EffectAction.Coins) Run.Shells += (int)e.Value;
+            }
         p.Hp = MathF.Min(p.Hp, Run.MaxHp);
         LastPearl = itemId;
         Stats.PearlsFound++;
@@ -616,6 +637,7 @@ public sealed partial class PlaneWorld
                 BaseRadius = radius,
                 Grow = spec.Grow,
                 Explosive = spec.Explosive,
+                Split = spec.Split,
                 Charged = charge,
                 Hover = hover,
                 Volley = _volleys,
@@ -725,6 +747,58 @@ public sealed partial class PlaneWorld
         }
     }
 
+    /// <summary>
+    /// What one of her bubbles deals on a hit: its damage, grown with distance (Starfish Arm), and now and then a
+    /// critical hit (Giant Squid Eye: CritChance of hits do CritMult×, from the level's seeded bubble rolls).
+    /// </summary>
+    float HitDamage(PlaneShot shot)
+    {
+        float damage = shot.Damage * GrowFactor(shot);
+        var spec = Run.Loadout.Shot;
+        if (spec.CritChance > 0f && _bubbleRng.NextFloat() < spec.CritChance) damage *= spec.CritMult;
+        return damage;
+    }
+
+    /// <summary>Bubbles split off this step (Mitosis), added once the shots have all been walked.</summary>
+    readonly List<PlaneShot> _spawned = new();
+
+    /// <summary>
+    /// Mitosis: a bubble that has just popped on something splits into two halves flying on either side of
+    /// <paramref name="heading"/> (its way on: on through a foe, off a wall). The foe it popped on is not hit again by them.
+    /// </summary>
+    void SplitBubble(PlaneShot shot, Vector2 heading, PlaneMob? spare = null)
+    {
+        if (!shot.Split || !shot.FromPlayer) return;
+        if (heading == Vector2.Zero) heading = Player.Aim;
+        float speed = MathF.Max(PlaneCombatTuning.SplitSpeed, shot.Velocity.Length());
+        int volley = ++_volleys;
+        foreach (float side in new[] { -1f, 1f })
+        {
+            Vector2 dir = Rotate(heading, side * PlaneCombatTuning.SplitAngleDeg * MathUtil.Deg2Rad);
+            Vector2 at = shot.Position + dir * (shot.Radius + 0.15f);
+            if (!Map.IsOpen(at)) continue;
+            float radius = shot.BaseRadius * PlaneCombatTuning.SplitSize;
+            var half = new PlaneShot
+            {
+                Position = at,
+                Line = at,
+                Velocity = dir * speed,
+                Speed0 = speed,
+                Range = PlaneCombatTuning.SplitRange,
+                Life = PlaneCombatTuning.ShotLife,
+                FromPlayer = true,
+                Damage = shot.Damage * GrowFactor(shot) * 0.5f,
+                Radius = radius,
+                BaseRadius = radius,
+                Volley = volley,
+                Explosive = shot.Explosive,
+                Hover = _bubbleRng.Range(PlaneCombatTuning.BubbleHoverMin, PlaneCombatTuning.BubbleHoverMax) * Run.Loadout.Stats[Stat.BubbleHover],
+            };
+            if (spare is not null) half.Hit = new HashSet<PlaneMob> { spare };
+            _spawned.Add(half);
+        }
+    }
+
     /// <summary>Starfish Arm: how much a bubble has grown with the distance flown (1 when it does not grow).</summary>
     static float GrowFactor(PlaneShot shot)
     {
@@ -830,6 +904,9 @@ public sealed partial class PlaneWorld
                 if (!bounce)
                 {
                     Pop(shot, dir);
+                    Vector2 wall = Map.Gradient(next);
+                    wall = wall.LengthSquared() > 1e-6f ? Vector2.Normalize(wall) : dir;
+                    SplitBubble(shot, SafeNormalize(dir - 2f * Vector2.Dot(dir, wall) * wall));
                     return;
                 }
                 if (shot.BouncesLeft > 0) shot.BouncesLeft--;

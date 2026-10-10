@@ -36,6 +36,11 @@ public partial class TopDownMain : Node3D
     CombatView _combat = null!;
     CurrentView _currents = null!;
     VaseView _vases = null!;
+    /// <summary>Achievements: their data, what earns them on this run, and the banner that announces them (§8).</summary>
+    AchievementCatalog? _achievementData;
+    PlaneAchievements _achievements = null!;
+    AchievementBanner _achievementBanner = null!;
+    string? _debugAward;
     BossView _boss = null!;
     PufferlingView _puffers = null!;
     BannerView _banner = null!;
@@ -140,6 +145,7 @@ public partial class TopDownMain : Node3D
         InputSetup.Register();
         _tuning = SettingsStore.LoadTuning();
         _catalog = LoadCatalog();
+        _achievementData = LoadAchievements(_catalog);
         // Keep the GPU cool: the frame-rate cap from the view options (60 by default; captures run uncapped).
         var view = _view = SettingsStore.LoadView();
         Engine.MaxFps = _captureDir is null ? view.MaxFps : 0;
@@ -169,6 +175,7 @@ public partial class TopDownMain : Node3D
         AddChild(_damage);
         _sfx = new Sfx();
         AddChild(_sfx);
+        if (_achievementBanner is not null) _achievementBanner.Sound = _sfx;
         // Light bubbles: a merge chimes, a semitone higher for every bubble it holds (at most one chime per 60 ms).
         _combat.Merged += (_, bubbles) =>
         {
@@ -206,6 +213,13 @@ public partial class TopDownMain : Node3D
             else if (arg == "--fire") _autoFire = true;
             else if (arg == "--use-active") _autoActive = true;
             else if (arg == "--dbg-surge") _dbgSurge = true;
+            else if (arg.StartsWith("--award=")) _debugAward = Value("--award=");
+            else if (arg == "--reset-profile")
+            {
+                // Verification: the saved profile's achievements (and so its unlocked pearls) are cleared.
+                GameSave.Current.Profile.Achievements.Clear();
+                GameSave.Write();
+            }
             else if (arg.StartsWith("--dbg-slowmo=") && float.TryParse(Value("--dbg-slowmo="), NumberStyles.Float, CultureInfo.InvariantCulture, out float slow))
                 Engine.TimeScale = Math.Clamp(slow, 0.02f, 1f);
             else if (arg == "--paused") _startPaused = true;
@@ -360,6 +374,13 @@ public partial class TopDownMain : Node3D
             ShowDetail = false, EdgesOnly = true, ArrowScale = 1.3f, ArrowColor = new Color(1f, 0.72f, 0.35f),
         };
         layer.AddChild(_fullMap);
+        // Achievement banners: above the HUD, below the pause menu.
+        var bannerLayer = new CanvasLayer { Layer = 3 };
+        AddChild(bannerLayer);
+        _achievementBanner = new AchievementBanner { ReducedMotion = _view.ReducedMotion };
+        bannerLayer.AddChild(_achievementBanner);
+        // Its sounds come from the game's Sfx (made in _Ready, before or after this).
+        if (_sfx is not null) _achievementBanner.Sound = _sfx;
         // ESC: pause, restart the run, see the pearls she has absorbed. Drawn above the rest of the HUD.
         var pauseLayer = new CanvasLayer { Layer = 5 };
         AddChild(pauseLayer);
@@ -436,6 +457,34 @@ public partial class TopDownMain : Node3D
         box.AddChild(_info);
     }
 
+    static AchievementCatalog? LoadAchievements(ItemCatalog? items)
+    {
+        if (items is null) return null;
+        try
+        {
+            using var file = FileAccess.Open("res://data/achievements.json", FileAccess.ModeFlags.Read);
+            return AchievementCatalog.FromJson(file.GetAsText(), items);
+        }
+        catch (Exception e)
+        {
+            GD.PushError($"No achievements: {e.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Newly earned achievements: each is announced by its banner (with the pearl it unlocked, which the offers now
+    /// draw from), and the profile is saved at once.
+    /// </summary>
+    void Earned(IReadOnlyList<string> ids)
+    {
+        if (ids.Count == 0) return;
+        foreach (string id in ids)
+            if (_achievementData is not null && _achievementData.TryGet(id, out var def))
+                _achievementBanner.Enqueue(def, _catalog is not null && _catalog.TryGet(def.Pearl, out var pearl) ? pearl : null);
+        if (_persist) GameSave.Write();
+    }
+
     static ItemCatalog? LoadCatalog()
     {
         try
@@ -500,6 +549,9 @@ public partial class TopDownMain : Node3D
         {
             ResetRunTotals();
             _run = new PlaneRun(_catalog, _tuning);
+            // Her earned achievements are the run's unlocks (the profile's own set: one earned mid-run applies at once).
+            _run.Unlocked = _recorder.Profile.Achievements;
+            _achievements = new PlaneAchievements(_recorder.Profile, _customSeed);
             foreach (string id in _startPearls)
                 if (_catalog?.Contains(id) == true) _run.Add(id);
             if (_startHp is { } hp) _run.Hp = hp;
@@ -529,9 +581,15 @@ public partial class TopDownMain : Node3D
             _world.Ambushes.Clear();
         }
         if (_dbgSurge) InjectSurge();
+        _achievements.EnterLevel();
+        // A pearl unlocked by an achievement, offered here for the first time, wears a NEW chip.
+        var fresh = new HashSet<string>();
+        if (_catalog is not null)
+            foreach (string pid in _world.Pearls.Select(q => q.ItemId).Concat(_world.Stands.Where(st => st.Kind == StandKind.Pearl).Select(st => st.ItemId)))
+                if (_catalog.TryGet(pid, out var offered) && offered.Unlock is not null && !_recorder.Profile.SeenItems.Contains(pid)) fresh.Add(pid);
         _recorder.EnterLevel(_world, _id);
         SaveRun();
-        _combat.Show(_world, _catalog);
+        _combat.Show(_world, _catalog, fresh);
         _currents.Clear();
         _vases.Show(_world);
         _puffers.Show(_world);
@@ -691,6 +749,14 @@ public partial class TopDownMain : Node3D
             return;
         }
         float dt = (float)delta;
+        // Banners run on game time: they wait while paused and under a splash.
+        if (!Paused && _transition == Transition.None && !_deathSplash) _achievementBanner.Step(dt);
+        if (_debugAward is { } award && _achievementData is not null && _achievementData.TryGet(award, out var shown))
+        {
+            // Verification: shows the banner (it awards nothing).
+            _debugAward = null;
+            _achievementBanner.Enqueue(shown, _catalog is not null && _catalog.TryGet(shown.Pearl, out var p0) ? p0 : null);
+        }
         // The level below, once made, goes under the hole.
         if (_belowTask is { IsCompleted: true } below && _transition == Transition.None)
         {
@@ -731,6 +797,7 @@ public partial class TopDownMain : Node3D
             float hpBefore = _world.Player.Hp;
             _world.Step(ReadInput());
             _recorder.Observe(_world);
+            Earned(_achievements.Observe(_world));
             // Healing from any source shows as a green number: the HP she gained beyond the hits she took this step.
             float taken = 0f;
             foreach (var e in _world.Events)
@@ -863,6 +930,7 @@ public partial class TopDownMain : Node3D
     {
         _accumulator = 0;
         _recorder.LevelCleared(_world, _levelTime);
+        Earned(_achievements.LevelCleared(_world));
         AddToRun();
         _diving = true;
         _diveTime = 0f;
@@ -1172,7 +1240,7 @@ public partial class TopDownMain : Node3D
     void TogglePause()
     {
         if (Paused) Resume();
-        else _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp);
+        else _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp, _achievementData);
     }
 
     void CloseDebug()
@@ -1193,6 +1261,8 @@ public partial class TopDownMain : Node3D
         _recorder = new PlaneProfileRecorder(new Profile());
         _recorder.StartRun(_seed.ToString(), _customSeed, _run.Items, continuing: false);
         _recorder.EnterLevel(_world, _id);
+        // Achievements too: a debug run never earns one into the saved profile (its banners still show).
+        _achievements = new PlaneAchievements(_recorder.Profile, _customSeed);
         Say("Debug run: not saved");
     }
 

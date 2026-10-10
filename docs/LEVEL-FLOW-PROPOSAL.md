@@ -191,7 +191,6 @@ inside the same ring of rock.
     current level's floor.
 - Level N's terrain mesh leaves out the hole's floor and draws the shaft walls (its own rock extruded down by 8 m).
 - The fog and blur stay exactly as they are (§5.2).
-- **The beneath-layer** (procedural shadows) stays as the ambience under the solid floor.
 - The minimap and topographic map mark the hole the way they mark the rift today (the exit has to be findable). On a
   boss level, the Crack's icon takes that place.
 

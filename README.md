@@ -39,7 +39,7 @@ Arguments after `--`:
 - Automation: `--autopilot` (swims the shortest route to the exit), `--dive` (dives whenever it can), `--fire`,
   `--use-active` (uses the active pearl whenever it is ready), `--paused`.
 - Views and capture: `--map`, `--f3`, `--no-focus`, `--capture=dir --frames=a,b`.
-- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-slowmo=0.1` (game time slowed, e.g. to watch bubbles pop), `--dbg-surge` (a current surge through her canyon, 1 s in), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
+- Debug views: `--dbg-noshadow`, `--dbg-nossao`, `--dbg-nodecor`, `--dbg-nocanopy`, `--dbg-normals`, `--dbg-nobanner`, `--dbg-zoom=metres` (camera distance), `--dbg-slowmo=0.1` (game time slowed, e.g. to watch bubbles pop), `--dbg-surge` (a current surge through her canyon, 1 s in), `--award=id` (shows an achievement's banner; awards nothing), `--reset-profile` (clears the saved profile's achievements and unlocks), `--dbg-follow=mob|fish` (the camera on the nearest pufferling)
   (no boss title card).
 - Any of these flags skip the title and start a run that is neither recorded nor saved.
 - The title's own review flags:
@@ -67,7 +67,7 @@ src/Game/Title/    title screen (the main scene): live-sea backdrop, menu, seed 
 src/Game/TopDown/ the game scene: level, combat and boss views, camera rig, HUD, minimap, menus, splashes
 src/Game/Fx/      reusable art: flora, creature, clam and reef meshes, pearl materials, particles, sounds, sun light
 src/Game/         controls (InputSetup), settings and save store, conversions
-assets/shaders/   the reef's skin (reef_surface), each level's frame and the dive's portal (level_frame), the water pass (topdown_post) and the beneath-layer, Clementine's bell and tentacles, bubble, pearl, boss, map and art shaders
+assets/shaders/   the reef's skin (reef_surface), each level's frame and the dive's portal (level_frame), the water pass (topdown_post), Clementine's bell and tentacles, bubble, pearl, boss, map and art shaders
 docs/             design documents, the Depth 1 bestiary and milestone checklists
 ```
 

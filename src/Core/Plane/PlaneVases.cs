@@ -130,16 +130,19 @@ public sealed partial class PlaneWorld
         bool strong = shot.Damage * GrowFactor(shot) >= VaseTuning.BreakImpact
             || shot.Charged >= VaseTuning.BreakCharge
             || Run.Loadout.Stats[Stat.Knockback] >= VaseTuning.BreakKnockback;
+        Vector2 off = SafeNormalize(dir - 2f * Vector2.Dot(dir, -n) * -n);
         if (strong)
         {
             BreakVase(vase, dir);
             Pop(shot, -n);
+            SplitBubble(shot, off);
             return;
         }
         Events.Add(new PlaneEvent(PlaneEventType.VaseHit, vase.Position, dir));
         if (shot.BouncesLeft <= 0 && _bubbleRng.NextFloat() < PlaneCombatTuning.BubblePopChance)
         {
             Pop(shot, -n);
+            SplitBubble(shot, off);
             return;
         }
         if (shot.BouncesLeft > 0) shot.BouncesLeft--;

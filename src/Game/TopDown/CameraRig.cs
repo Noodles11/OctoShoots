@@ -45,7 +45,7 @@ public partial class CameraRig : Node3D
     /// <summary>The swim level the depth focus is sharp at (the dive slides it down to the level below).</summary>
     public void SetSwimLevel(float y) => _post.SetShaderParameter("swim_level", y);
 
-    /// <summary>The absolute position of the world's origin (the god rays and the beneath-layer follow it).</summary>
+    /// <summary>The absolute position of the world's origin (the god rays follow it).</summary>
     public void SetWorldOrigin(Vector2 origin) => _post.SetShaderParameter("world_origin", origin);
 
     /// <summary>Moves the camera with the world, keeping the view exactly as it was (her halo in the water too).</summary>

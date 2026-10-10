@@ -11,6 +11,8 @@ public static class PlaneEconomyTuning
 {
     /// <summary>Shells are picked up within this distance of her edge, and drift toward her from a little farther.</summary>
     public const float ShellReach = 0.6f, ShellMagnet = 2.5f, ShellMagnetSpeed = 9f;
+    /// <summary>Pirate's Doubloon: shell caches hold this many times as many shells.</summary>
+    public const float RichCaches = 1.5f;
     /// <summary>Remora Sucker: shells drift to her from this far instead.</summary>
     public const float RemoraMagnet = 7.5f;
     /// <summary>
@@ -96,6 +98,8 @@ public sealed partial class PlaneWorld
                 _ => (0, 0),
             };
             int count = min + (max > min ? _drops.Int(max - min + 1) : 0);
+            // Pirate's Doubloon: shell caches hold half as many again.
+            if (poi.Kind == PoiKind.ShellCache && Run.Loadout.Flags.Contains("richCaches")) count = (int)MathF.Round(count * PlaneEconomyTuning.RichCaches);
             for (int i = 0; i < count; i++)
             {
                 float a = _drops.Range(0f, MathF.Tau), r = _drops.Range(0.8f, MathF.Min(3f, poi.Radius - 1f));
@@ -126,6 +130,9 @@ public sealed partial class PlaneWorld
     /// <summary>A defeated mob leaves shells, flung a little way.</summary>
     void Drop(Vector2 at)
     {
+        // Lucky Sea Glass: each point of luck is one more shell from every freed foe.
+        int lucky = (int)MathF.Round(Run.Loadout.Stats.Luck);
+        for (int i = 0; i < lucky; i++) Shells.Add(new PlaneShell { Position = at, Velocity = Fling(2f, 4f) });
         float roll = _drops.NextFloat();
         if (roll < PlaneEconomyTuning.HeartChance)
         {

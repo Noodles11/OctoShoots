@@ -420,7 +420,7 @@ public sealed partial class PlaneWorld
         var boss = Boss;
         if (boss is null || boss.Stage != BossStage.Fight) return false;
         if (Vector2.Distance(shot.Position, boss.Position) > PlaneBossTuning.BodyRadius + shot.Radius) return false;
-        if (boss.Open) DamageBoss(boss, shot.Damage * GrowFactor(shot), shot.Velocity);
+        if (boss.Open) DamageBoss(boss, HitDamage(shot), shot.Velocity);
         Pop(shot, boss.Position - shot.Position);
         return true;
     }

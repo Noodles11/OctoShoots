@@ -9,7 +9,7 @@
 | | Passive | Active | All |
 |---|---|---|---|
 | Pearls | 53 | 11 | 64 |
-| Built | 17 | 2 | 19 |
+| Built | 22 | 2 | 24 |
 
 - **Passive** pearls work on their own from the moment she absorbs one: her stats, her bubbles, or something that
   happens when she is hit or frees a creature. They stack.
@@ -27,8 +27,8 @@
 |  | **Squid Ink Espresso** | *The Galleon's cook swore by it* | +0.3 speed; +0.4 fire rate | ★★ | treasure, shop |  |
 |  | **Whale Lung** | *Deep breath!* | +1 range; ×1.3 shot size; No idle sinking | ★★ | treasure |  |
 |  | **Pufferfish Pout** | *Angry and proud of it* | ×1.5 damage; −0.2 shot speed | ★★★ | treasure, boss |  |
-|  | **Lucky Sea Glass** | *Found only on moonlit tides* | +2 luck | ★ | treasure, shop | untouchable |
-|  | **Plankton Swarm** | *Tiny friends* | +0.5 fire rate; Fires 3 shots; ×0.6 shot size; ×0.5 shot damage | ★★ | treasure |  |
+| ✅ | **Lucky Sea Glass** | *Found only on moonlit tides* | +2 luck | ★ | treasure, shop | untouchable |
+| ✅ | **Plankton Swarm** | *Tiny friends* | +0.5 fire rate; Fires 3 shots; ×0.6 shot size; ×0.5 shot damage | ★★ | treasure |  |
 |  | **Barnacle Armor** | *Clingy but protective* | −0.1 speed; +30 foam HP | ★ | treasure, shop |  |
 
 ### Shot modifiers
@@ -41,7 +41,7 @@
 | ✅ | **Anglerfish Lure** | *Follow the light* | Shots home onto foes | ★★★ | treasure |  |
 | ✅ | **Swordfish Bill** | *En garde* | Shots pierce foes | ★★ | treasure |  |
 |  | **Ghost Jelly** | *Walls are a suggestion* | Shots pass through rock | ★★ | treasure, secret |  |
-|  | **Mitosis** | *One becomes two* | Shots split in two on hit | ★★ | treasure | three_synergies |
+| ✅ | **Mitosis** | *One becomes two* | Bubbles split in two when they pop on a foe or rock | ★★ | treasure | bubble_bath |
 |  | **Frost Kelp** | *Grown in the cold seep* | 12% chance to freeze foes for 1.6s | ★★ | treasure |  |
 |  | **Fire Coral** | *Don't touch* | 25% chance to burn foes for 3s | ★★ | treasure |  |
 |  | **Sea Nettle Sting** | *It lingers* | 30% chance to poison foes for 4s | ★★ | treasure, curse |  |
@@ -50,7 +50,7 @@
 |  | **Sunbeam** | *A shaft of the surface, bottled* | Hold to charge a laser beam | ★★★★ | treasure, boss, whale |  |
 | ✅ | **Double Helix** | *Twice the twist* | Fires 2 shots; Shots twist in a double helix | ★★★ | treasure |  |
 | ✅ | **Triple Tentacle** | *Why squirt once?* | Fires 3 shots; ×0.8 shot damage | ★★★ | treasure, boss |  |
-| ✅ | **Starfish Arm** | *Grows back bigger* | Shots grow with distance | ★★ | treasure |  |
+| ✅ | **Starfish Arm** | *Grows back bigger* | Shots grow with distance | ★★ | treasure | big_bubble_energy |
 | ✅ | **Ink Sac** | *Handle with care* | Shots explode | ★★★ | treasure, curse |  |
 |  | **Siren Song** | *Come closer…* | 15% chance to charm foes for 3s | ★★ | treasure, siren |  |
 
@@ -63,15 +63,15 @@
 | ✅ | **Remora Sucker** | *Sticks to everything* | Pulls pickups toward you | ★ | shop, treasure |  |
 |  | **Manta Shawl** | *Glide like a ray* | +0.2 speed; ×0.8 dash cooldown | ★★ | treasure, whale |  |
 |  | **Cuttlebone** | *Light as foam, hard as shell* | +0.3 shot speed; +1 range | ★ | treasure, shop |  |
-|  | **Giant Squid Eye** | *It sees your weak spot* | 10% chance of a ×3 critical hit | ★★★ | treasure, boss | mother_angler |
+| ✅ | **Giant Squid Eye** | *It sees your weak spot* | 10% chance of a ×3 critical hit | ★★★ | treasure, boss | shucked_in_fifteen |
 |  | **Coral Polyp** | *Slowly, the reef rebuilds* | +0.25 HP regeneration per second | ★★ | treasure, whale |  |
 |  | **Brain Coral** | *Thinks two moves ahead* | +1 luck; ×1.35 active item recharge speed | ★★ | treasure, shop |  |
-|  | **Pirate's Doubloon** | *Finders keepers* | +15 sand dollars | ★ | treasure, goldenClam |  |
+| ✅ | **Pirate's Doubloon** | *Finders keepers* | +15 sand dollars; Shell caches hold 50% more | ★ | treasure, goldenClam | hermit_hoarder |
 |  | **Cannonball** | *Fire in the hold!* | +0.8 damage; −0.15 shot speed; ×1.4 shot size; ×2 knockback | ★★ | treasure, boss |  |
 | ✅ | **Captain's Hook** | *Get over here* | ×2.5 knockback | ★ | treasure, shop |  |
 |  | **Stingray Barb** | *Numbs on contact* | 30% chance to slow foes for 2s | ★ | treasure |  |
 |  | **Lamprey Mouth** | *Every bite counts* | Each creature freed heals 3 HP | ★★★ | treasure, curse | hollow_maw |
-| ✅ | **Hammerhead** | *Wide-angle view* | Fires a 5-pellet cone; ×0.6 shot damage | ★★★ | treasure, boss | ringmaster |
+| ✅ | **Hammerhead** | *Wide-angle view* | Fires a 5-pellet cone; ×0.6 shot damage | ★★★ | treasure, boss |  |
 |  | **Rear Fin** | *Eyes in the back of your mantle* | Also fires backwards | ★ | treasure, shop |  |
 |  | **Abyssal Glow** | *Light from below the light* | +0.4 damage; ×1.3 glow radius | ★★ | treasure, curse |  |
 |  | **Glowing Moss** | *Soft and luminous* | ×1.5 glow radius; +0.1 HP regeneration per second | ★ | treasure, shop |  |

@@ -422,35 +422,17 @@ between the places, before any rock exists:
 - **Destructible reef** inherited: ink bombs dig craters through the floor
   into pockets; beams burn rock; plain bubbles never dig.
 
-### 4.3 The beneath-layer (the depth illusion)
-- The floor Clementine swims over is **translucent water, not ground glass**:
-  looking "down" you see, ~10 m below, a **dark, blurred, slow-moving shadow
-  copy of the next depth** — its structures as vague silhouettes, and **the
-  next biome's creatures as drifting shadows**.
-- Rendered in the water pass (`beneath.gdshaderinc`), no geometry: each view
-  ray is carried on to a plane ~13 m below the swim level (y −14), so the layer
-  slides by with true parallax under the floor. There it reads a procedural
-  shadow field: broad ridges of the deeper reef, swaying forests of the next
-  biome, six large creatures gliding on long paths across the level, and a
-  drifting fish school. Shadows darken the floor toward the next depth's murk
-  (`reef_beneath_tint`); the strength is per depth (`ReefLook.Beneath`, the
-  `reef_beneath` global) and rises where the floor itself drops away.
-- **Escalates with depth:** in the Sunlit Shallows it's almost invisible
-  (bright water hides it). In the Twilight Trench and Abyss, ambient light is
-  near zero and **the beneath-layer becomes the scenery** — giant slow shapes
-  crossing under your feet, eyes opening and closing below. The deep ocean
-  should feel inhabited from below.
-- **Gameplay-readable tells:** sealed pockets glow faintly through the floor;
-  the Crack **backlights both layers** around the arena; the Tank's LED light
-  bleeds down into the Abyss below in the finale, inverted — the artificial
-  light above is what reaches *down*.
-- Shadow mobs are cosmetic: a function of position and time on the GPU, no
-  AI, no RNG — the sim never sees them (inherited §10 rule). Nothing in the beneath-layer ever reaches up through the floor.
+### 4.3 The floor
+- The floor Clementine swims over is **solid seabed**: nothing of the levels
+  below shows through it. The only view down is the shaft (§4.6), through
+  which she sees the level below in plain water.
+- Depth is told by the light, the palette and the murk of each depth (§5.1),
+  and by the dive itself.
 
 ### 4.4 Flow on a level (the open-floor pacing contract)
 1. Arrive by diving in: she sinks down the shaft from the level above and
    settles at the start, among the same rock that ringed the hole (§4.6).
-2. Orient by landmarks: cave beacons, the boss glow, the beneath-layer shadows.
+2. Orient by landmarks: cave beacons, the boss glow.
 3. Engage den encounters (waking groups, inherited §19), raid caves, spend at
    the shop, hunt secrets.
 4. Find the way down and dive: the blue hole, or on the boss level the arena →
@@ -517,8 +499,8 @@ levels: ~5–7 min rushed, ~30 min explored.
   the middle of the dive), easing in and back out so it is still at the end;
   the level above opens like an iris from the hole outward — from nothing, to
   the shaft's width as she gathers, then sweeping out — revealing the level
-  below inside the same ring; the depth focus, the sea surface and the
-  beneath-layer sink with her; through the Crack, the next depth's look blends
+  below inside the same ring; the depth focus and the sea surface sink
+  with her; through the Crack, the next depth's look blends
   in. The level's life stays behind: its creatures, pickups, shots, damage
   numbers and currents (and Queen Clam) fade out as the iris's dissolving edge
   passes over them, the rest with the descent, casting no shadow once fading;
@@ -530,7 +512,7 @@ levels: ~5–7 min rushed, ~30 min explored.
   bell and tentacles, her glow on the floor and her halo in the water, all
   moved and drawn at their new places in that same frame — so nothing on screen
   moves. Each level draws its patterns (sand, rock, caustics, flora sway, god
-  rays, the beneath-layer, the specks' glitter) from a fixed absolute origin,
+  rays, the specks' glitter) from a fixed absolute origin,
   and its sunlight from its true height under the sea surface (which sank with
   her), so they do not move either (`level_frame.gdshaderinc`). The run
   autosaves.
@@ -592,7 +574,7 @@ a dive. She is drawn after that pass, so the shadow never darkens her.
 | 3 Galleon | Amber, dusty | Only through wreck holes | Medium | Lanternfish, loot glints |
 | 4 Carnival | Neon but flickering | None — "stage lights" | Medium | Corrupted neon, bounce pads |
 | 5 Trench | Near zero | None | **Large — she is the lantern** | Bioluminescent flora specks |
-| 6 Abyss | Black | None | **Large, bloom-heavy** | Neon outlines + beneath-layer eyes |
+| 6 Abyss | Black | None | **Large, bloom-heavy** | Neon outlines + distant glowing eyes |
 | 7 Tank | Flat fluorescent LED | None — *wrong* | Irrelevant — everything is lit | Harsh, shadowless, artificial |
 
 - Menace drives fog density, saturation falloff, and how far the player glow
@@ -711,6 +693,30 @@ The FP staging ("look up through the surface") is replaced:
   inherited (`DEBUG` seed, item picker, no unlocks).
 - **Menace** (§5.3) and the **sadness curve** (fewer healthy creatures, more
   empty dens, quieter reef) are systemic and inherited unchanged.
+- **Achievements unlock pearls** (`data/achievements.json`, `PlaneAchievements`;
+  the design is docs/ACHIEVEMENTS-PROPOSAL.md). A run starts with the **basic
+  set**: every ported pearl without an `unlock` (DESIGN docs/PEARLS.md). Each of
+  the five achievements unlocks one pearl, which treasure rooms, shops and
+  Queen Clam offer from the moment it is earned — the rest of that run included
+  — and in every run after. Earned once per profile and saved at once; **a run
+  on a custom seed never earns one** (unlocks already earned still apply).
+
+  | Achievement | Earned when | Unlocks |
+  |---|---|---|
+  | **Big Bubble Energy** | one hit from a full bubble (15 merged: Bubble Coral) frees a foe that was at full health | Starfish Arm |
+  | **Bubble Bath** | 10 or more bubbles in one volley (Triple Tentacle + Hammerhead + Plankton Swarm + Double Helix) | Mitosis |
+  | **Shucked in Fifteen** | a boss freed within 15 s of landing | Giant Squid Eye |
+  | **Untouchable** | she dives on from a level without having taken damage on it | Lucky Sea Glass |
+  | **Hermit Hoarder** | 100 shells collected on one level | Pirate's Doubloon |
+
+  The unlocked pearls on the plane: **Mitosis** — a bubble that pops on a foe,
+  rock or a pot splits into two half-damage bubbles 40° either side of its way
+  on (they fly 4 m and never split again; the foe it popped on is spared);
+  **Giant Squid Eye** — 10% of hits deal ×3 (seeded); **Lucky Sea Glass** — +2
+  luck: every freed foe leaves 2 more shells; **Pirate's Doubloon** — +15 shells
+  when taken, and shell caches hold 50% more. **Plankton Swarm** (basic) adds
+  two smaller, half-damage bubbles to every volley. A pearl newly unlocked wears
+  a mint **NEW** chip the first time a treasure room or shop offers it.
 
 ---
 
@@ -727,9 +733,27 @@ The FP staging ("look up through the surface") is replaced:
   ring — each as opaque as its quarter of her HP is full, over a faint track
   (subtle, but there). They empty clockwise from the top-left and the last one
   left pulses when she is critical, eased like the rings.
+- **Achievement banner** (`AchievementBanner`, ACHIEVEMENTS-PROPOSAL §4): a
+  ticket at the bottom centre, above the HUD and below the pause menu — the main
+  card (a coral ACHIEVEMENT eyebrow with a mint diamond, the title, the
+  achievement's line, on pearl white with a coral rim and confetti) joined by a
+  perforated seam to a stub holding the pearl it unlocked, live in a white
+  socket with pastel rays turning behind it, a mint NEW PEARL chip, its name,
+  tagline and effects. A bubble rises and pops into it (a ring and sparkles);
+  the card springs in, the eyebrow slides in unskewing, the title drops in
+  letter by letter, the line fades up, the stub flips in and the pearl drops
+  into its socket with a squash; it holds about 3.75 s while a timer line
+  drains, then leaves in a puff of pastel smoke as the pearl rises out in a
+  bubble and pops. A pop and a rising four-note chime on the way in, a whoosh
+  and a small pop on the way out. Banners queue (300 ms apart; with three or
+  more waiting each holds 3 s), run on game time (they wait while paused and
+  under the death splash) and, with reduced motion, simply cross-fade.
+- **Pause menu**: resume, restart, save & quit, camera zoom; two tabs — the
+  pearls she has absorbed, and the **achievements** (earned ones with their line
+  and the pearl they unlocked; unearned ones as a dark pearl silhouette, the
+  title and how to earn it).
 - **Minimap**: circular, top-right, rotates so forward is up (inherited); fog of
-  war; landmark icons (inherited §27); beneath-layer shadows *do not* appear on
-  it — the map shows your floor only.
+  war; landmark icons (inherited §27); the map shows your floor only.
 - **Tab map**: full floor, legend, crater-accurate (inherited §26).
 - **Item captions**: name, tagline, one line per effect with numbers (inherited
   §29). No comic onomatopoeia (retired with the comic look); neon event
@@ -762,7 +786,6 @@ The pivot is mostly **deletion and constraint**:
 | Navigation | 3D flow field → 2D grid flow field (strict simplification). Walkers: floor contour following. |
 | Camera | New rig: tilted perspective, scroll smoothing, the two sanctioned breaks. |
 | Player presentation | New: bell soft-body (reuse verlet tooling), pulse propulsion, beneath-bell ammo orbs, pearl-consumption animation, bell pattern composer (motif×color instancing on the bell shader). |
-| Beneath-layer | New but cheap: a procedural shadow plane in the water pass, parallax by view ray, strength by depth; shadow mobs are pure functions of time. |
 | Lighting | Re-aim inherited work: god rays cross-view, caustics on floor, pooled point lights (glows), fog by depth. Sun shadow map optional at top depths only. |
 | Water field | 2D version of inherited grid. |
 | Enemies/bosses | Behaviors/AI inherited; **presentation and bullet patterns reworked** to 2D. Hand fight rebuilt per §6.5. |
@@ -771,9 +794,9 @@ The pivot is mostly **deletion and constraint**:
 | Tests/CI | xUnit determinism suite inherited; add plane-lock invariants. |
 
 **Performance target**: 60 FPS @1080p on GTX 1660 class with 300 projectiles,
-40 active creatures, full water field. No-ceiling meshing + beneath-layer LOD
-keep the frame budget; the light budget per §5.1 is the real constraint —
-flora and shadow mobs fade at mist distance (inherited fade rule).
+40 active creatures, full water field. No-ceiling meshing keeps the
+frame budget; the light budget per §5.1 is the real constraint — flora fades
+at mist distance (inherited fade rule).
 
 ### 11.1 Delivery plan (rework order)
 1. **Plane-lock spike (1 week):** Depth-1 basin, tilted camera, pulse swim,
@@ -781,13 +804,12 @@ flora and shadow mobs fade at mist distance (inherited fade rule).
 2. **Core constraint pass:** 2D positions, flow field, walker nav, save schema.
 3. **Look pass:** light budget per depth, god rays re-aim, caustics, marine
    snow, fog ramp, player glow. *This is the trailer milestone.*
-4. **Beneath-layer:** shadow geometry + shadow mobs + pocket glow-through.
-5. **Bell system:** consumption animation, motif×color composer, synergy
+4. **Bell system:** consumption animation, motif×color composer, synergy
    filaments, transformation re-themes.
-6. **Enemies:** four classes + ninja ported; 2D patterns.
-7. **Content:** three Depth-1 reefs, Gus/Queen Clam/Kelpie bosses, shop,
+5. **Enemies:** four classes + ninja ported; 2D patterns.
+6. **Content:** three Depth-1 reefs, Gus/Queen Clam/Kelpie bosses, shop,
    caves, secrets, pockets, coins.
-8. **Meta:** hub, unlocks, Sea-pedia, seeds, debug dive.
+7. **Meta:** hub, unlocks, Sea-pedia, seeds, debug dive.
 9. **Depths 2–6 + Tank + The Hand.**
 10. **Polish:** presets, accessibility, balance, exports.
 

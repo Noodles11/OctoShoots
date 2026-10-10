@@ -11,7 +11,6 @@ shader_type spatial;
 render_mode unshaded, depth_test_disabled, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
 
 #include "res://assets/shaders/sunlight.gdshaderinc"
-#include "res://assets/shaders/beneath.gdshaderinc"
 
 global uniform vec3 reef_water_shallow;
 global uniform vec3 reef_water_deep;
@@ -49,7 +48,7 @@ uniform vec3 bubble_color : source_color = vec3(1.0, 0.769, 0.420);
 /// A big-merge kill: a white lift at the screen's edges only, 1 → 0 over 60 ms.
 uniform float edge_flash = 0.0;
 /// The faint refraction wobble (0 with reduced motion).
-/// The absolute position (xz) of the world's origin: the god rays and the beneath-layer never jump after a dive.
+/// The absolute position (xz) of the world's origin: the god rays never jump after a dive.
 uniform vec2 world_origin = vec2(0.0);
 uniform float wobble = 1.0;
 
@@ -150,18 +149,6 @@ void fragment() {
 
 	vec3 cam = CAMERA_POSITION_WORLD;
 	vec3 ray = normalize(world - cam);
-
-	// The beneath-layer, seen through the translucent floor: the next depth's shadows about 13 m down, faint through
-	// the Shallows' bright sand, clearer the deeper the reef, plain where the floor drops away. It sits deeper than the
-	// floor, so it slides by with parallax.
-	if (reef_beneath.x > 0.0 && !open_deep) {
-		float floor_seen = 0.2 + 0.6 * smoothstep(0.5, 1.0, reef_beneath.x);
-		float through = reef_beneath.x * (floor_seen + (1.0 - floor_seen) * smoothstep(1.0, 7.0, below)) * (1.0 - smoothstep(0.0, 1.0, above));
-		vec3 pb = cam + ray * ((reef_beneath.y - cam.y) / min(ray.y, -1e-3));
-		vec2 b = beneath(pb.xz + world_origin, TIME, reef_crack + vec4(world_origin, 0.0, 0.0));
-		col = mix(col, col * 0.3 + reef_beneath_tint * 0.1, min(b.x * through * 2.4, 0.8));
-		col += vec3(1.0, 0.36, 0.08) * b.y * through * 0.4;
-	}
 
 	// The Crack shines up through the murk: an orange glow breathing out of the fissure, a doorway in the floor.
 	if (reef_crack.w > 0.0 && !open_deep) {
