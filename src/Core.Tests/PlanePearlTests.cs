@@ -23,6 +23,21 @@ public class PlanePearlTests
     static PlaneRun NewRun() => new(Catalog.Value, new Tuning());
 
     [Fact]
+    public void RemovingAPearlTakesItsStatsAwayAndKeepsHpWithinTheMax()
+    {
+        var run = NewRun();
+        float baseMax = run.MaxHp;
+        run.Add("moon_jelly_heart");
+        Assert.True(run.MaxHp > baseMax);
+        run.Hp = run.MaxHp;
+        Assert.True(run.Remove("moon_jelly_heart"));
+        Assert.DoesNotContain("moon_jelly_heart", run.Items);
+        Assert.Equal(baseMax, run.MaxHp);
+        Assert.Equal(baseMax, run.Hp);
+        Assert.False(run.Remove("moon_jelly_heart"));
+    }
+
+    [Fact]
     public void TheTreasureRoomHoldsAPearlSheCanTake()
     {
         var w = new PlaneWorld(Room1.Value, new Tuning(), NewRun());

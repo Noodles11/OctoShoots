@@ -22,7 +22,7 @@ A top-down action roguelite in a darkening ocean.
 The game boots into the **title screen**: continue, a new run, a seeded run, the Sea-pedia, statistics, save & load and
 settings. **WASD** swims (north is up), **Space** dashes, **Shift** over the shaft dives, the mouse (or arrow keys)
 aims and fires, **Esc** pauses, **Tab**
-shows the whole level, **F3** the debug map, **R** regenerates from the seed field (Enter applies a typed seed).
+shows the whole level, **F1** the debug menu (jump to any level, switch any pearl on or off; a debug run is not saved), **F3** the debug map, **R** regenerates from the seed field (Enter applies a typed seed).
 
 ## Running
 

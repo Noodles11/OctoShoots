@@ -54,6 +54,15 @@ public sealed class PlaneRun
         if (Active?.Id == itemId) ActiveCharge = 1f;
     }
 
+    /// <summary>Debug: takes a pearl away again (every copy). Her HP stays within the new maximum.</summary>
+    public bool Remove(string itemId)
+    {
+        if (Items.RemoveAll(id => id == itemId) == 0) return false;
+        Rebuild();
+        Hp = System.MathF.Min(Hp, MaxHp);
+        return true;
+    }
+
     void Rebuild() => Loadout = Loadout.Build(Catalog, Items, Tuning);
 
     /// <summary>A pearl a treasure room may hold: a ported one the catalog knows and she does not have yet.</summary>

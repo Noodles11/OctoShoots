@@ -21,8 +21,8 @@ namespace OctoShoots.Game.TopDown;
 /// The top-down game (DESIGN-TOPDOWN), current pass: generate a level from a seed, show it, and swim it; over the level's
 /// shaft, Shift dives down into the next one, which has been readied underneath meanwhile (§4.6). Opened from the title
 /// screen (RunLaunch); run directly with verification flags, it starts a run on its own and saves nothing.
-/// WASD swims (north is up), Space dashes, Shift dives (InputSetup), the mouse aims, F3 toggles the debug map, R
-/// regenerates from the seed field.
+/// WASD swims (north is up), Space dashes, Shift dives (InputSetup), the mouse aims, F1 opens the debug menu (any
+/// level, any pearls), F3 toggles the debug map, R regenerates from the seed field.
 /// Verification flags: --seed=, --cycle=, --depth=, --level=, --at=start|arch|cave|exit|hole|shop|cache|treasure|ambush|mob|boss,
 /// --autopilot, --dive (dives whenever it can), --calm (no creatures), --fire, --pearls=, --hp=, --boss-hp=, --paused, --map, --f3, --no-focus,
 /// --capture=dir --frames=a,b.
@@ -95,7 +95,10 @@ public partial class TopDownMain : Node3D
     /// <summary>The run's play time so far (sim time: still while paused or diving), for the HUD clock.</summary>
     float _elapsed;
     bool _fireBlocked;
-    bool Paused => _pause.Visible;
+    bool Paused => _pause.Visible || _debug.Visible;
+    /// <summary>F1: the debug menu (level jump, pearls). Once used, the run is neither saved nor recorded.</summary>
+    DebugMenu _debug = null!;
+    bool _f1Latched, _debugRun;
 
     /// <summary>Opened from the title: the run is recorded in the profile and saved at the start of every level.</summary>
     bool _persist;
@@ -242,7 +245,7 @@ public partial class TopDownMain : Node3D
     /// <summary>Saves the run as it stands at the start of this level (continuing puts her back here).</summary>
     void SaveRun()
     {
-        if (!_persist || _run is null) return;
+        if (!_persist || _debugRun || _run is null) return;
         GameSave.Current.Run = new SuspendedRun
         {
             Seed = _seed.ToString(),
@@ -381,6 +384,26 @@ public partial class TopDownMain : Node3D
             _id = LevelId.First;
             Regenerate();
             Say("New run");
+        };
+        _debug = new DebugMenu();
+        pauseLayer.AddChild(_debug);
+        _debug.Closed += CloseDebug;
+        _debug.GoTo += DebugGoTo;
+        _debug.PearlToggled += (id, on) =>
+        {
+            MarkDebugRun();
+            if (on) _run!.Add(id);
+            else _run!.Remove(id);
+            DebugPearlsChanged();
+        };
+        _debug.AllPearls += on =>
+        {
+            MarkDebugRun();
+            foreach (string id in _run!.Items.ToList()) _run.Remove(id);
+            if (on)
+                foreach (string id in PlaneRun.PortedPearls)
+                    if (_catalog?.Contains(id) == true) _run.Add(id);
+            DebugPearlsChanged();
         };
         // The run was saved at the start of this level: she resumes there.
         _pause.QuitPressed += GoToTitle;
@@ -640,6 +663,18 @@ public partial class TopDownMain : Node3D
     public override void _Process(double delta)
     {
         CapRenderScale();
+        // F1, any time in a run: the debug menu.
+        bool f1 = Input.IsPhysicalKeyPressed(Key.F1);
+        if (f1 && !_f1Latched && _world is not null && _run is not null)
+        {
+            if (_debug.Visible) CloseDebug();
+            else
+            {
+                if (_pause.Visible) _pause.Close();
+                _debug.Open(_run, _catalog, _seed, _id);
+            }
+        }
+        _f1Latched = f1;
         if (_world is null)
         {
             if (_firstMap is { IsCompleted: true } first)
@@ -817,7 +852,7 @@ public partial class TopDownMain : Node3D
         int left = _world.Mobs.Count(m => m.Alive);
         _info.Text = $"{_id} · mobs {left}/{_world.Mobs.Count} · pearls {_run!.Items.Count}   attempt {_map.Attempt + 1}   pos {p.Position.X:0.0}, {p.Position.Y:0.0}   " +
                      $"{Engine.GetFramesPerSecond():0} FPS" + (_statusTimer > 0f ? $"   {_status}" : "") +
-                     "\nWASD swim · Space dash · hold the mouse or arrows to shoot · Shift over the shaft dives · Tab map · Esc pause · F3 debug · R regenerate";
+                     "\nWASD swim · Space dash · hold the mouse or arrows to shoot · Shift over the shaft dives · Tab map · Esc pause · F1 debug menu · F3 debug map · R regenerate";
         Capture();
     }
 
@@ -1005,8 +1040,8 @@ public partial class TopDownMain : Node3D
         _accumulator = 0;
         AddToRun();
         _recorder.RunDied(_world, _runTime);
-        // The run is over: nothing to continue.
-        if (_persist)
+        // The run is over: nothing to continue (a debug run leaves the save as it was).
+        if (_persist && !_debugRun)
         {
             GameSave.Current.Run = null;
             GameSave.Write();
@@ -1140,6 +1175,51 @@ public partial class TopDownMain : Node3D
         else _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp);
     }
 
+    void CloseDebug()
+    {
+        _debug.Close();
+        // The click that closed the menu must not fire a shot.
+        _fireBlocked = true;
+    }
+
+    /// <summary>
+    /// The first debug change makes this a debug run: it is not saved, and from here on it is recorded into a throwaway
+    /// profile (the statistics keep what came before).
+    /// </summary>
+    void MarkDebugRun()
+    {
+        if (_debugRun || _run is null) return;
+        _debugRun = true;
+        _recorder = new PlaneProfileRecorder(new Profile());
+        _recorder.StartRun(_seed.ToString(), _customSeed, _run.Items, continuing: false);
+        _recorder.EnterLevel(_world, _id);
+        Say("Debug run: not saved");
+    }
+
+    /// <summary>Debug: on to any level of the seed, keeping what she carries (at full HP if asked).</summary>
+    void DebugGoTo(LevelId id, bool fullHp)
+    {
+        if (_diving || _transition != Transition.None)
+        {
+            Say("Wait for the level to finish loading");
+            return;
+        }
+        MarkDebugRun();
+        _run!.Hp = fullHp ? _run.MaxHp : Mathf.Min(_world.Player.Hp, _run.MaxHp);
+        _id = id;
+        CloseDebug();
+        Regenerate(keepRun: true);
+        Say($"Debug: {_id}");
+    }
+
+    /// <summary>Debug: pearls switched; her HP stays within the new maximum, and the menu's boxes follow.</summary>
+    void DebugPearlsChanged()
+    {
+        _world.Player.Hp = Mathf.Min(_world.Player.Hp, _run!.MaxHp);
+        _run.Hp = _world.Player.Hp;
+        _debug.Refresh(_run);
+    }
+
     void Resume()
     {
         _pause.Close();
@@ -1152,7 +1232,8 @@ public partial class TopDownMain : Node3D
         bool esc = Input.IsPhysicalKeyPressed(Key.Escape);
         if (esc && !_escLatched)
         {
-            if (_seedField.HasFocus()) _seedField.ReleaseFocus();
+            if (_debug.Visible) CloseDebug();
+            else if (_seedField.HasFocus()) _seedField.ReleaseFocus();
             else TogglePause();
         }
         _escLatched = esc;
