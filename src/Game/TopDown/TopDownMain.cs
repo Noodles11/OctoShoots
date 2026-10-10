@@ -143,6 +143,7 @@ public partial class TopDownMain : Node3D
         ParseArgs();
         TakeLaunch();
         InputSetup.Register();
+        AddChild(new PadMenus());
         _tuning = SettingsStore.LoadTuning();
         _catalog = LoadCatalog();
         _achievementData = LoadAchievements(_catalog);

@@ -79,6 +79,7 @@ public partial class TitleMain : Node3D
         }
         // The bindings (keyboard, mouse and controller), so menus answer the D-pad, A and B too.
         InputSetup.Register();
+        AddChild(new PadMenus());
         Input.MouseMode = Input.MouseModeEnum.Visible;
         foreach (string arg in args)
         {

@@ -42,6 +42,7 @@ public partial class ControlsBinder : VBoxContainer
         reset.Pressed += () =>
         {
             _capturing = null;
+            PadMenus.Capturing = false;
             InputSetup.ResetAll();
             Refresh();
         };
@@ -70,6 +71,7 @@ public partial class ControlsBinder : VBoxContainer
         button.Pressed += () =>
         {
             _capturing = (action, pad);
+            PadMenus.Capturing = true;
             _capturedAt = Time.GetTicksMsec();
             Refresh();
         };
@@ -105,11 +107,16 @@ public partial class ControlsBinder : VBoxContainer
     {
         var slot = _capturing;
         _capturing = null;
+        PadMenus.Capturing = false;
         GetViewport().SetInputAsHandled();
         Refresh();
         if (slot is { } s && _slots.TryGetValue(s, out var button)) button.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     /// <summary>A capture still open when the card closes is dropped.</summary>
-    public override void _ExitTree() => _capturing = null;
+    public override void _ExitTree()
+    {
+        _capturing = null;
+        PadMenus.Capturing = false;
+    }
 }
