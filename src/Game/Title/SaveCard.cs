@@ -71,7 +71,7 @@ public partial class SaveCard : PanelContainer
         head.AddChild(title);
         _toast = TitleStyle.Text("", 15, new Color(0.1f, 0.45f, 0.36f), TitleStyle.BodyBold);
         head.AddChild(_toast);
-        var close = TitleStyle.Pill("Close  (Esc)", primary: false, size: 15);
+        var close = TitleStyle.Pill("Close  (Esc · B)", primary: false, size: 15);
         close.Pressed += _close;
         head.AddChild(close);
 

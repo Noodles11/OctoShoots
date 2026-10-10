@@ -65,7 +65,7 @@ public partial class PauseMenu : Control
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         buttons.AddThemeConstantOverride("separation", 16);
         box.AddChild(buttons);
-        var resume = new Button { Text = "Resume  (Esc)", CustomMinimumSize = new Vector2(170f, 40f) };
+        var resume = _resume = new Button { Text = "Resume  (Esc · Start · B)", CustomMinimumSize = new Vector2(220f, 40f) };
         resume.Pressed += () => ResumePressed?.Invoke();
         buttons.AddChild(resume);
         var restart = new Button { Text = "Restart run", CustomMinimumSize = new Vector2(170f, 40f) };
@@ -172,7 +172,16 @@ public partial class PauseMenu : Control
         Visible = true;
     }
 
-    public void Close() => Visible = false;
+    public void Close()
+    {
+        Visible = false;
+        GetViewport()?.GuiReleaseFocus();
+    }
+
+    /// <summary>A controller in hand: focus on Resume, so the D-pad and A work the menu.</summary>
+    public void FocusFirst() => _resume.GrabFocus();
+
+    Button _resume = null!;
 
     static Control Row(ItemDef item)
     {

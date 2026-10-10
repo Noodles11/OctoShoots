@@ -10,6 +10,7 @@ using OctoShoots.Core.Items;
 using OctoShoots.Core.Plane;
 using OctoShoots.Core.Run;
 using OctoShoots.Core.Saves;
+using OctoShoots.Game.Controls;
 using OctoShoots.Game.Fx;
 using OctoShoots.Game.Settings;
 using OctoShoots.Game.TopDown;
@@ -76,6 +77,9 @@ public partial class TitleMain : Node3D
             CallDeferred(MethodName.SkipToGame);
             return;
         }
+        // The bindings (keyboard, mouse and controller), so menus answer the D-pad, A and B too.
+        InputSetup.Register();
+        Input.MouseMode = Input.MouseModeEnum.Visible;
         foreach (string arg in args)
         {
             string Value(string prefix) => arg[prefix.Length..];
@@ -561,16 +565,16 @@ public partial class TitleMain : Node3D
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is not InputEventKey { Pressed: true, Echo: false } key) return;
+        // B on a controller goes back like Esc: closes a card or the seed box.
+        bool padBack = e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.B };
+        if (e is not InputEventKey { Pressed: true, Echo: false } key)
+        {
+            if (padBack) GoBack();
+            return;
+        }
         if (key.PhysicalKeycode == Key.Escape)
         {
-            if (_card is not null) CloseCard();
-            else if (_inline is not null)
-            {
-                CloseInline();
-                _items.FirstOrDefault(it => it.Button.GetParent<Control>().Visible).Button?.GrabFocus();
-            }
-            GetViewport().SetInputAsHandled();
+            GoBack();
             return;
         }
         // W/S move through the menu like the arrow keys.
@@ -582,6 +586,18 @@ public partial class TitleMain : Node3D
             visible[next].GrabFocus();
             GetViewport().SetInputAsHandled();
         }
+    }
+
+    /// <summary>Esc or B: close the open card, or the seed box / prompt under a menu item.</summary>
+    void GoBack()
+    {
+        if (_card is not null) CloseCard();
+        else if (_inline is not null)
+        {
+            CloseInline();
+            _items.FirstOrDefault(it => it.Button.GetParent<Control>().Visible).Button?.GrabFocus();
+        }
+        GetViewport().SetInputAsHandled();
     }
 
     // ───────────────────────── review ─────────────────────────

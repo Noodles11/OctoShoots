@@ -72,7 +72,7 @@ public partial class TopDownMain : Node3D
     LineEdit _seedField = null!;
     Label _info = null!;
     double _accumulator;
-    bool _dashLatched, _rLatched, _f3Latched, _escLatched;
+    bool _dashLatched, _rLatched, _f3Latched, _escLatched, _backLatched;
     PauseMenu _pause = null!;
     ViewOptions _view = null!;
     DamageNumbers _damage = null!;
@@ -303,6 +303,7 @@ public partial class TopDownMain : Node3D
 
     void GoToTitle()
     {
+        Input.MouseMode = Input.MouseModeEnum.Visible;
         if (_persist) GameSave.Write();
         GetTree().ChangeSceneToFile(RunLaunch.TitleScene);
     }
@@ -1137,10 +1138,11 @@ public partial class TopDownMain : Node3D
         _transitionTime = 0f;
     }
 
-    /// <summary>Enter or a click, as a press (a key or button already held when the prompt appears does not count).</summary>
+    /// <summary>Enter, a click or A, as a press (a key or button already held when the prompt appears does not count).</summary>
     bool Confirmed()
     {
         bool down = Input.IsPhysicalKeyPressed(Key.Enter) || Input.IsPhysicalKeyPressed(Key.KpEnter) || Input.IsMouseButtonPressed(MouseButton.Left)
+                    || Input.IsActionPressed(InputSetup.MenuAccept)
                     // Captures go on by themselves after a moment.
                     || _captureDir is not null && _transitionTime > 2f;
         bool pressed = down && !_confirmLatched;
@@ -1167,7 +1169,7 @@ public partial class TopDownMain : Node3D
                 if (_deathSplash)
                 {
                     // Dead: read the page, then start over.
-                    _splash.Prompt(_persist ? "Enter or click: a new run  ·  Esc: back to the title" : "Press Enter or click to start a new run");
+                    _splash.Prompt(_persist ? "Enter, click or A: a new run  ·  Esc or B: back to the title" : "Press Enter, click or A to start a new run");
                     _confirmLatched = true;
                     _transition = Transition.Waiting;
                     _transitionTime = 0f;
@@ -1190,14 +1192,14 @@ public partial class TopDownMain : Node3D
                 else
                 {
                     // The level is ready: wait until the player has read the page.
-                    _splash.Prompt("Press Enter or click to continue");
+                    _splash.Prompt("Press Enter, click or A to continue");
                     _confirmLatched = true;
                     _transition = Transition.Waiting;
                 }
                 _transitionTime = 0f;
                 break;
             case Transition.Waiting:
-                if (_deathSplash && _persist && Input.IsPhysicalKeyPressed(Key.Escape))
+                if (_deathSplash && _persist && (Input.IsPhysicalKeyPressed(Key.Escape) || Input.IsActionPressed(InputSetup.MenuBack)))
                 {
                     GoToTitle();
                     return;
@@ -1240,7 +1242,11 @@ public partial class TopDownMain : Node3D
     void TogglePause()
     {
         if (Paused) Resume();
-        else _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp, _achievementData);
+        else
+        {
+            _pause.Open(_world.Run, _catalog, _seed.ToString(), _id.ToString(), _world.Player.Hp, _achievementData);
+            if (_pad) _pause.FocusFirst();
+        }
     }
 
     void CloseDebug()
@@ -1299,14 +1305,22 @@ public partial class TopDownMain : Node3D
 
     void HandleKeys()
     {
-        bool esc = Input.IsPhysicalKeyPressed(Key.Escape);
+        // Esc or Start pauses and resumes; B also resumes (and closes the debug menu).
+        bool esc = Input.IsActionPressed(InputSetup.Pause);
+        bool back = Input.IsActionPressed(InputSetup.MenuBack);
         if (esc && !_escLatched)
         {
             if (_debug.Visible) CloseDebug();
             else if (_seedField.HasFocus()) _seedField.ReleaseFocus();
             else TogglePause();
         }
+        else if (back && !_backLatched && (Paused || _debug.Visible))
+        {
+            if (_debug.Visible) CloseDebug();
+            else Resume();
+        }
         _escLatched = esc;
+        _backLatched = back;
         if (Paused) return;
         bool typing = _seedField.HasFocus();
         bool r = Input.IsPhysicalKeyPressed(Key.R) && !typing;
@@ -1319,7 +1333,7 @@ public partial class TopDownMain : Node3D
             _debugPanel.Visible = _debugMap.Visible;
         }
         _f3Latched = f3;
-        if (!OS.GetCmdlineUserArgs().Contains("--map")) _fullMap.Visible = Input.IsPhysicalKeyPressed(Key.Tab) && !typing;
+        if (!OS.GetCmdlineUserArgs().Contains("--map")) _fullMap.Visible = Input.IsActionPressed(InputSetup.Review) && !typing;
     }
 
     /// <summary>Verification (`--dbg-surge`): a full-strength surge through the canyon she is in, a second into the level.</summary>
@@ -1353,13 +1367,9 @@ public partial class TopDownMain : Node3D
             return input;
         }
         if (_seedField.HasFocus()) return input;
-        var move = System.Numerics.Vector2.Zero;
-        // Movement and dash come from the shared bindings (InputSetup).
-        if (Input.IsActionPressed(InputSetup.Forward)) move.Y -= 1f;
-        if (Input.IsActionPressed(InputSetup.Back)) move.Y += 1f;
-        if (Input.IsActionPressed(InputSetup.Left)) move.X -= 1f;
-        if (Input.IsActionPressed(InputSetup.Right)) move.X += 1f;
-        input.Move = move;
+        // Everything comes from the bindings (InputSetup): keyboard and mouse, or a controller.
+        Vector2 stick = Input.GetVector(InputSetup.Left, InputSetup.Right, InputSetup.Forward, InputSetup.Back);
+        input.Move = new System.Numerics.Vector2(stick.X, stick.Y);
         bool dash = Input.IsActionPressed(InputSetup.Dash);
         input.Dash = dash && !_dashLatched;
         _dashLatched = dash;
@@ -1370,26 +1380,53 @@ public partial class TopDownMain : Node3D
         input.UseActive = use && !_activeLatched || _autoActive && _world.Run.ActiveCharge >= 1f;
         _activeLatched = use;
         if (AutoFire(ref input)) return input;
-        // Shooting: arrow keys aim and fire; otherwise the held left mouse button fires toward the pointer.
-        var arrows = System.Numerics.Vector2.Zero;
-        if (Input.IsPhysicalKeyPressed(Key.Up)) arrows.Y -= 1f;
-        if (Input.IsPhysicalKeyPressed(Key.Down)) arrows.Y += 1f;
-        if (Input.IsPhysicalKeyPressed(Key.Left)) arrows.X -= 1f;
-        if (Input.IsPhysicalKeyPressed(Key.Right)) arrows.X += 1f;
-        if (arrows.LengthSquared() > 0f)
+        bool held = Input.IsActionPressed(InputSetup.Fire);
+        if (!held) _fireBlocked = false;
+        Vector2 aim = Input.GetVector(InputSetup.AimLeft, InputSetup.AimRight, InputSetup.AimUp, InputSetup.AimDown);
+        if (_pad)
         {
-            input.Aim = System.Numerics.Vector2.Normalize(arrows);
+            // Controller: the right stick aims (she keeps the last aim when it is let go), the trigger shoots.
+            if (aim.LengthSquared() > 0.04f) _padAim = new System.Numerics.Vector2(aim.X, aim.Y);
+            input.Aim = _padAim.LengthSquared() > 1e-6f ? System.Numerics.Vector2.Normalize(_padAim) : _world.Player.Aim;
+            input.Fire = held && !_fireBlocked;
+        }
+        else if (aim.LengthSquared() > 0f)
+        {
+            // The aim keys (the arrows) aim and shoot at once.
+            input.Aim = System.Numerics.Vector2.Normalize(new System.Numerics.Vector2(aim.X, aim.Y));
             input.Fire = true;
         }
         else
         {
+            // The mouse: shoot toward the pointer while the button is held.
             input.Aim = MouseAim();
-            bool held = Input.IsMouseButtonPressed(MouseButton.Left);
-            if (!held) _fireBlocked = false;
             input.Fire = held && !_fireBlocked;
         }
         return input;
     }
+
+    /// <summary>
+    /// Which device she is played with: a controller once a pad button or stick is used, keyboard and mouse again on a key,
+    /// a click or a real mouse move. The pointer hides while the controller plays.
+    /// </summary>
+    public override void _Input(InputEvent e)
+    {
+        bool pad = e switch
+        {
+            InputEventJoypadButton => true,
+            InputEventJoypadMotion m => Mathf.Abs(m.AxisValue) > 0.4f || _pad,
+            InputEventKey or InputEventMouseButton => false,
+            InputEventMouseMotion mm => mm.Relative.LengthSquared() < 9f && _pad,
+            _ => _pad,
+        };
+        if (pad == _pad) return;
+        _pad = pad;
+        Input.MouseMode = pad ? Input.MouseModeEnum.Hidden : Input.MouseModeEnum.Visible;
+        if (pad && _pause.Visible) _pause.FocusFirst();
+    }
+
+    bool _pad;
+    System.Numerics.Vector2 _padAim;
 
     /// <summary>Verification: fire at the boss in her fight, else at the nearest mob.</summary>
     bool AutoFire(ref PlaneInput input)
