@@ -10,8 +10,8 @@ namespace OctoShoots.Game.Controls;
 /// The bindings (§5): every action in the InputMap, with one keyboard/mouse binding and one controller binding each.
 /// Both are rebindable in Settings and saved to user://bindings.json. Controller defaults: left stick swims, right stick
 /// aims, RT shoots, LT dashes, X dives, Y uses the active pearl, View (Back) holds the level map, Start pauses (Start or
-/// B closes it). Menus: the D-pad moves, A confirms, B goes back. The debug keys (F1, F3, R) and typing a seed are
-/// keyboard only.
+/// B closes it). Menus: the D-pad moves, A confirms, B goes back (rebindable too). The debug keys (F1, F3, R) and typing
+/// a seed are keyboard only.
 /// </summary>
 public static class InputSetup
 {
@@ -35,6 +35,11 @@ public static class InputSetup
 	/// <summary>Menus on a controller: A confirms (a splash, a prompt), B goes back (closes the pause menu, a card).</summary>
 	public const string MenuAccept = "menu_accept";
 	public const string MenuBack = "menu_back";
+	/// <summary>Menus on a controller: moving the focus (the D-pad by default; the keyboard keeps its arrows).</summary>
+	public const string MenuUp = "menu_up";
+	public const string MenuDown = "menu_down";
+	public const string MenuLeft = "menu_left";
+	public const string MenuRight = "menu_right";
 
 	/// <summary>A rebindable action: its name in Settings, its default keyboard/mouse and controller bindings.</summary>
 	public sealed record Spec(string Action, string Name, string Key, string Pad, bool KeyLocked = false);
@@ -56,7 +61,24 @@ public static class InputSetup
 		new(Review, "Level map (hold)", "key:Tab", "button:Back"),
 		// Esc always pauses (and cancels a rebind), so its key stays.
 		new(Pause, "Pause", "key:Escape", "button:Start", KeyLocked: true),
+		// The menus on a controller (the keyboard's are fixed: arrows, Enter, Esc). Rebindable for a pad Godot does not
+		// recognise (an Xbox controller over Bluetooth can arrive with its buttons numbered differently).
+		new(MenuAccept, "Menu: confirm", "", "button:A", KeyLocked: true),
+		new(MenuBack, "Menu: back", "", "button:B", KeyLocked: true),
+		new(MenuUp, "Menu: up", "", "button:DpadUp", KeyLocked: true),
+		new(MenuDown, "Menu: down", "", "button:DpadDown", KeyLocked: true),
+		new(MenuLeft, "Menu: left", "", "button:DpadLeft", KeyLocked: true),
+		new(MenuRight, "Menu: right", "", "button:DpadRight", KeyLocked: true),
 	};
+
+	/// <summary>The menu actions and the Godot ui action each one drives.</summary>
+	public static readonly (string Menu, string Ui)[] MenuActions =
+	{
+		(MenuAccept, "ui_accept"), (MenuUp, "ui_up"), (MenuDown, "ui_down"), (MenuLeft, "ui_left"), (MenuRight, "ui_right"),
+	};
+
+	/// <summary>A controller's last press, for Settings (what the pad really sends).</summary>
+	public static string? LastPad { get; set; }
 
 	const string FilePath = "user://bindings.json";
 	static readonly Dictionary<string, (string? Key, string? Pad)> Current = new();
@@ -69,10 +91,7 @@ public static class InputSetup
 		KeyOnly(Bomb, Godot.Key.E);
 		KeyOnly(Restart, Godot.Key.R);
 		KeyOnly(DebugPanel, Godot.Key.F1);
-		Ensure(MenuAccept, 0.5f);
-		InputMap.ActionAddEvent(MenuAccept, new InputEventJoypadButton { ButtonIndex = JoyButton.A, Device = -1 });
-		Ensure(MenuBack, 0.5f);
-		InputMap.ActionAddEvent(MenuBack, new InputEventJoypadButton { ButtonIndex = JoyButton.B, Device = -1 });
+		LoadMappings();
 		// Godot's own menu navigation: the D-pad moves focus, A presses, B cancels.
 		AddIfMissing("ui_up", new InputEventJoypadButton { ButtonIndex = JoyButton.DpadUp, Device = -1 });
 		AddIfMissing("ui_down", new InputEventJoypadButton { ButtonIndex = JoyButton.DpadDown, Device = -1 });
@@ -80,6 +99,29 @@ public static class InputSetup
 		AddIfMissing("ui_right", new InputEventJoypadButton { ButtonIndex = JoyButton.DpadRight, Device = -1 });
 		AddIfMissing("ui_accept", new InputEventJoypadButton { ButtonIndex = JoyButton.A, Device = -1 });
 		AddIfMissing("ui_cancel", new InputEventJoypadButton { ButtonIndex = JoyButton.B, Device = -1 });
+	}
+
+	/// <summary>
+	/// Extra controller mappings: user://gamecontrollerdb.txt, one SDL mapping per line (SDL_GameControllerDB format),
+	/// for a pad Godot's own list does not know.
+	/// </summary>
+	static void LoadMappings()
+	{
+		const string path = "user://gamecontrollerdb.txt";
+		if (!FileAccess.FileExists(path)) return;
+		using var file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+		foreach (string line in (file?.GetAsText() ?? "").Split('\n'))
+		{
+			string mapping = line.Trim();
+			if (mapping.Length > 0 && !mapping.StartsWith('#')) Input.AddJoyMapping(mapping, updateExisting: true);
+		}
+	}
+
+	/// <summary>The connected controllers: name, whether Godot recognises its layout, and its GUID.</summary>
+	public static IEnumerable<string> PadReport()
+	{
+		foreach (int device in Input.GetConnectedJoypads())
+			yield return $"{Input.GetJoyName(device)} — {(Input.IsJoyKnown(device) ? "recognised" : "NOT recognised: its buttons may be numbered differently, rebind them below")} · GUID {Input.GetJoyGuid(device)}";
 	}
 
 	public static Spec SpecOf(string action) => Bindable.First(s => s.Action == action);
@@ -165,7 +207,8 @@ public static class InputSetup
 			{
 				"Back" => "View (Back)", "Start" => "Start (Menu)", "Guide" => "Guide", "LeftShoulder" => "LB", "RightShoulder" => "RB",
 				"LeftStick" => "LS (press)", "RightStick" => "RS (press)", "DpadUp" => "D-pad up", "DpadDown" => "D-pad down",
-				"DpadLeft" => "D-pad left", "DpadRight" => "D-pad right", _ => p[1],
+				"DpadLeft" => "D-pad left", "DpadRight" => "D-pad right",
+				_ => int.TryParse(p[1], out int raw) ? $"Button {raw}" : p[1],
 			},
 			"axis" => p[1] switch
 			{
@@ -174,7 +217,7 @@ public static class InputSetup
 				"LeftY" => p[2] == "-" ? "Left stick ↑" : "Left stick ↓",
 				"RightX" => p[2] == "-" ? "Right stick ←" : "Right stick →",
 				"RightY" => p[2] == "-" ? "Right stick ↑" : "Right stick ↓",
-				_ => code,
+				_ => int.TryParse(p[1], out int raw) ? $"Axis {raw} {p[2]}" : code,
 			},
 			_ => code,
 		};

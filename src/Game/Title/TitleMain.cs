@@ -567,7 +567,7 @@ public partial class TitleMain : Node3D
     public override void _UnhandledInput(InputEvent e)
     {
         // B on a controller goes back like Esc: closes a card or the seed box.
-        bool padBack = e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.B };
+        bool padBack = e is (InputEventJoypadButton or InputEventJoypadMotion) && e.IsActionPressed(InputSetup.MenuBack);
         if (e is not InputEventKey { Pressed: true, Echo: false } key)
         {
             if (padBack) GoBack();

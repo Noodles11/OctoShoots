@@ -19,6 +19,12 @@ public partial class ControlsBinder : VBoxContainer
     public override void _Ready()
     {
         AddThemeConstantOverride("separation", 6);
+        // What is connected and what it really sends: a pad Godot does not recognise numbers its buttons its own way.
+        _pads = TitleStyle.Text("", 14, TitleStyle.Ink);
+        _pads.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        AddChild(_pads);
+        _last = TitleStyle.Text("", 14, TitleStyle.InkSoft, TitleStyle.Mono);
+        AddChild(_last);
         var grid = new GridContainer { Columns = 3 };
         grid.AddThemeConstantOverride("h_separation", 18);
         grid.AddThemeConstantOverride("v_separation", 6);
@@ -54,9 +60,18 @@ public partial class ControlsBinder : VBoxContainer
         Refresh();
     }
 
+    Label _pads = null!, _last = null!;
+
+    public override void _Process(double delta)
+    {
+        var pads = string.Join("\n", InputSetup.PadReport());
+        _pads.Text = pads.Length > 0 ? "Controller: " + pads : "No controller connected.";
+        _last.Text = InputSetup.LastPad is { } code ? $"Last controller input: {InputSetup.Describe(code)}   ({code})" : "Press any controller button to see what it sends.";
+    }
+
     Button Slot(string action, bool pad, bool locked)
     {
-        var button = new Button { CustomMinimumSize = new Vector2(190f, 32f), Disabled = locked, TooltipText = locked ? "Esc always pauses" : "Press, then the new binding (Esc cancels, Delete clears)" };
+        var button = new Button { CustomMinimumSize = new Vector2(190f, 32f), Disabled = locked, TooltipText = locked ? "Fixed on the keyboard" : "Press, then the new binding (Esc cancels, Delete clears)" };
         foreach (string state in new[] { "normal", "hover", "pressed", "focus", "disabled" })
         {
             var box = TitleStyle.Box(state == "hover" ? new Color(1f, 0.93f, 0.9f) : Colors.White, state == "focus" ? TitleStyle.Mint : TitleStyle.Coral, 2, 10);
